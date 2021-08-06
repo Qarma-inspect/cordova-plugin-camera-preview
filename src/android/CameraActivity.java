@@ -665,7 +665,7 @@ public class CameraActivity extends Fragment {
       protected Void doInBackground(Void... voids) {
         try {
             AudioManager audioManager = (AudioManager) context.getSystemService(Context.AUDIO_SERVICE);
-            int volume = audioManager.getStreamVolume( AudioManager.STREAM_NOTIFICATION);
+            int volume = audioManager.getStreamVolume(AudioManager.STREAM_MUSIC);
             if(volume != 0) {
                 mCamera.takePicture(shutterCallback, null, pictureCallback);
             } else {
