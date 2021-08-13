@@ -61,9 +61,6 @@ class Preview extends RelativeLayout implements TextureView.SurfaceTextureListen
 
         mCamera.startPreview();
       }
-
-      mCamera.setPreviewTexture(surface);
-      mCamera.startPreview();
     } catch (IOException ioe) {
       // Something bad happened
     }
