@@ -254,64 +254,71 @@ public class CameraActivity extends Fragment {
 
   private void setDefaultCameraId() {
     // Find the total number of cameras available
-    numberOfCameras = Camera.getNumberOfCameras();
-
-    int camId = defaultCamera.equals("front") ? Camera.CameraInfo.CAMERA_FACING_FRONT : Camera.CameraInfo.CAMERA_FACING_BACK;
-
-    // Find the ID of the default camera
-    Camera.CameraInfo cameraInfo = new Camera.CameraInfo();
-    for (int i = 0; i < numberOfCameras; i++) {
-      Camera.getCameraInfo(i, cameraInfo);
-      if (cameraInfo.facing == camId) {
-        defaultCameraId = camId;
-        break;
-      }
+    try {
+        numberOfCameras = Camera.getNumberOfCameras();
+        int camId = defaultCamera.equals("front") ? Camera.CameraInfo.CAMERA_FACING_FRONT : Camera.CameraInfo.CAMERA_FACING_BACK;
+        // Find the ID of the default camera
+        Camera.CameraInfo cameraInfo = new Camera.CameraInfo();
+        for (int i = 0; i < numberOfCameras; i++) {
+            Camera.getCameraInfo(i, cameraInfo);
+            if (cameraInfo.facing == camId) {
+                defaultCameraId = camId;
+                break;
+            }
+        }
+    } catch (Exception e) {
+        Log.d(TAG, e.getMessage());
+        e.printStackTrace();
     }
   }
 
   @Override
   public void onResume() {
     super.onResume();
-
-    mCamera = Camera.open(defaultCameraId);
-
-    if (cameraParameters != null) {
-      mCamera.setParameters(cameraParameters);
-    }
-
-    cameraCurrentlyLocked = defaultCameraId;
-
-    if (mPreview.mPreviewSize == null) {
-      mPreview.setCamera(mCamera, cameraCurrentlyLocked);
-      eventListener.onCameraStarted();
-    } else {
-      mPreview.switchCamera(mCamera, cameraCurrentlyLocked);
-      mCamera.startPreview();
-    }
-
-    Log.d(TAG, "cameraCurrentlyLocked:" + cameraCurrentlyLocked);
-
-    final FrameLayout frameContainerLayout = (FrameLayout) view.findViewById(getResources().getIdentifier("frame_container", "id", appResourcesPackage));
-
-    ViewTreeObserver viewTreeObserver = frameContainerLayout.getViewTreeObserver();
-
-    if (viewTreeObserver.isAlive()) {
-      viewTreeObserver.addOnGlobalLayoutListener(new ViewTreeObserver.OnGlobalLayoutListener() {
-        @Override
-        public void onGlobalLayout() {
-          try {
-            frameContainerLayout.getViewTreeObserver().removeGlobalOnLayoutListener(this);
-            frameContainerLayout.measure(View.MeasureSpec.UNSPECIFIED, View.MeasureSpec.UNSPECIFIED);
-            final RelativeLayout frameCamContainerLayout = (RelativeLayout) view.findViewById(getResources().getIdentifier("frame_camera_cont", "id", appResourcesPackage));
-
-            FrameLayout.LayoutParams camViewLayout = new FrameLayout.LayoutParams(frameContainerLayout.getWidth(), frameContainerLayout.getHeight());
-            camViewLayout.gravity = Gravity.CENTER_HORIZONTAL | Gravity.CENTER_VERTICAL;
-            frameCamContainerLayout.setLayoutParams(camViewLayout);
-          } catch (Exception e) {
-            Log.d(TAG, e.getMessage());
-          }
+    try {
+        mCamera = Camera.open(defaultCameraId);
+        if (cameraParameters != null) {
+            mCamera.setParameters(cameraParameters);
         }
-      });
+
+        cameraCurrentlyLocked = defaultCameraId;
+
+        if (mPreview.mPreviewSize == null) {
+            mPreview.setCamera(mCamera, cameraCurrentlyLocked);
+            eventListener.onCameraStarted();
+        } else {
+            mPreview.switchCamera(mCamera, cameraCurrentlyLocked);
+            mCamera.startPreview();
+        }
+
+        Log.d(TAG, "cameraCurrentlyLocked:" + cameraCurrentlyLocked);
+
+        final FrameLayout frameContainerLayout = (FrameLayout) view.findViewById(getResources().getIdentifier("frame_container", "id", appResourcesPackage));
+
+        ViewTreeObserver viewTreeObserver = frameContainerLayout.getViewTreeObserver();
+
+        if (viewTreeObserver.isAlive()) {
+            viewTreeObserver.addOnGlobalLayoutListener(new ViewTreeObserver.OnGlobalLayoutListener() {
+                @Override
+                public void onGlobalLayout() {
+                    try {
+                        frameContainerLayout.getViewTreeObserver().removeGlobalOnLayoutListener(this);
+                        frameContainerLayout.measure(View.MeasureSpec.UNSPECIFIED, View.MeasureSpec.UNSPECIFIED);
+                        final RelativeLayout frameCamContainerLayout = (RelativeLayout) view.findViewById(getResources().getIdentifier("frame_camera_cont", "id", appResourcesPackage));
+
+                        FrameLayout.LayoutParams camViewLayout = new FrameLayout.LayoutParams(frameContainerLayout.getWidth(), frameContainerLayout.getHeight());
+                        camViewLayout.gravity = Gravity.CENTER_HORIZONTAL | Gravity.CENTER_VERTICAL;
+                        frameCamContainerLayout.setLayoutParams(camViewLayout);
+                    } catch (Exception e) {
+                        Log.d(TAG, e.getMessage());
+                        e.printStackTrace();
+                    }
+                }
+            });
+        }
+    } catch (Exception e) {
+        e.printStackTrace();
+        Log.d(TAG, e.getMessage());
     }
   }
 
@@ -739,54 +746,55 @@ public class CameraActivity extends Fragment {
           final int viewWidth,
           final int viewHeight
   ) {
-    if (mCamera != null) {
+    try {
+        if (mCamera != null) {
 
-      mCamera.cancelAutoFocus();
+            mCamera.cancelAutoFocus();
 
-      int screenRotation = getActivity().getWindowManager().getDefaultDisplay().getRotation();
-      int screenRotationDegrees = 0;
+            int screenRotation = getActivity().getWindowManager().getDefaultDisplay().getRotation();
+            int screenRotationDegrees = 0;
 
-      switch (screenRotation) {
-        case Surface.ROTATION_0:
-          screenRotationDegrees = 0;
-          break;
-        case Surface.ROTATION_90:
-          screenRotationDegrees = 90;
-          break;
-        case Surface.ROTATION_180:
-          screenRotationDegrees = 180;
-          break;
-        case Surface.ROTATION_270:
-          screenRotationDegrees = 270;
-          break;
-      }
+            switch (screenRotation) {
+                case Surface.ROTATION_0:
+                    screenRotationDegrees = 0;
+                    break;
+                case Surface.ROTATION_90:
+                    screenRotationDegrees = 90;
+                    break;
+                case Surface.ROTATION_180:
+                    screenRotationDegrees = 180;
+                    break;
+                case Surface.ROTATION_270:
+                    screenRotationDegrees = 270;
+                    break;
+            }
 
-      Camera.CameraInfo info = new Camera.CameraInfo();
-      Camera.getCameraInfo(defaultCameraId, info);
-      int cameraRotation = info.orientation;
+            Camera.CameraInfo info = new Camera.CameraInfo();
+            Camera.getCameraInfo(defaultCameraId, info);
+            int cameraRotation = info.orientation;
 
-      Log.d(TAG, "CameraRotation: " + cameraRotation + ", ScreenRotation: " + screenRotationDegrees);
+            Log.d(TAG, "CameraRotation: " + cameraRotation + ", ScreenRotation: " + screenRotationDegrees);
 
-      Camera.Parameters parameters = mCamera.getParameters();
+            Camera.Parameters parameters = mCamera.getParameters();
 
-      int rotateCoordinatesClockwise = ((screenRotationDegrees - cameraRotation) + 360) % 360;
+            int rotateCoordinatesClockwise = ((screenRotationDegrees - cameraRotation) + 360) % 360;
 
-      Rect focusRect = calculateTapArea(pointX, pointY, viewWidth, viewHeight, rotateCoordinatesClockwise);
-      parameters.setFocusMode(Camera.Parameters.FOCUS_MODE_AUTO);
-      parameters.setFocusAreas(Arrays.asList(new Camera.Area(focusRect, 1000)));
+            Rect focusRect = calculateTapArea(pointX, pointY, viewWidth, viewHeight, rotateCoordinatesClockwise);
+            parameters.setFocusMode(Camera.Parameters.FOCUS_MODE_AUTO);
+            parameters.setFocusAreas(Arrays.asList(new Camera.Area(focusRect, 1000)));
 
-      if (parameters.getMaxNumMeteringAreas() > 0) {
-        Rect meteringRect = calculateTapArea(pointX, pointY, viewWidth, viewHeight, rotateCoordinatesClockwise);
-        parameters.setMeteringAreas(Arrays.asList(new Camera.Area(meteringRect, 1000)));
-      }
+            if (parameters.getMaxNumMeteringAreas() > 0) {
+                Rect meteringRect = calculateTapArea(pointX, pointY, viewWidth, viewHeight, rotateCoordinatesClockwise);
+                parameters.setMeteringAreas(Arrays.asList(new Camera.Area(meteringRect, 1000)));
+            }
 
-      try {
-        setCameraParameters(parameters);
-        mCamera.autoFocus(callback);
-      } catch (Exception e) {
+            setCameraParameters(parameters);
+            mCamera.autoFocus(callback);
+        }
+    } catch(Exception e) {
         Log.d(TAG, e.getMessage());
+        e.printStackTrace();
         callback.onAutoFocus(false, this.mCamera);
-      }
     }
   }
 
