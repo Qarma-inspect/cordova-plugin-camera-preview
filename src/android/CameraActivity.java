@@ -74,6 +74,8 @@ public class CameraActivity extends Fragment {
     void onFocusSetError(String message);
 
     void onCameraStarted();
+
+    void onCameraStartedError(String message);
   }
 
   private CameraPreviewListener eventListener;
@@ -277,44 +279,48 @@ public class CameraActivity extends Fragment {
     super.onResume();
     try {
         mCamera = Camera.open(defaultCameraId);
-        if (cameraParameters != null) {
-            mCamera.setParameters(cameraParameters);
-        }
-
-        cameraCurrentlyLocked = defaultCameraId;
-
-        if (mPreview.mPreviewSize == null) {
-            mPreview.setCamera(mCamera, cameraCurrentlyLocked);
-            eventListener.onCameraStarted();
+        if(mCamera == null) {
+          eventListener.onCameraStartedError("Cannot access CameraService");
         } else {
-            mPreview.switchCamera(mCamera, cameraCurrentlyLocked);
-            mCamera.startPreview();
-        }
+            if (cameraParameters != null) {
+                mCamera.setParameters(cameraParameters);
+            }
 
-        Log.d(TAG, "cameraCurrentlyLocked:" + cameraCurrentlyLocked);
+            cameraCurrentlyLocked = defaultCameraId;
 
-        final FrameLayout frameContainerLayout = (FrameLayout) view.findViewById(getResources().getIdentifier("frame_container", "id", appResourcesPackage));
+            if (mPreview.mPreviewSize == null) {
+                mPreview.setCamera(mCamera, cameraCurrentlyLocked);
+                eventListener.onCameraStarted();
+            } else {
+                mPreview.switchCamera(mCamera, cameraCurrentlyLocked);
+                mCamera.startPreview();
+            }
 
-        ViewTreeObserver viewTreeObserver = frameContainerLayout.getViewTreeObserver();
+            Log.d(TAG, "cameraCurrentlyLocked:" + cameraCurrentlyLocked);
 
-        if (viewTreeObserver.isAlive()) {
-            viewTreeObserver.addOnGlobalLayoutListener(new ViewTreeObserver.OnGlobalLayoutListener() {
-                @Override
-                public void onGlobalLayout() {
-                    try {
-                        frameContainerLayout.getViewTreeObserver().removeGlobalOnLayoutListener(this);
-                        frameContainerLayout.measure(View.MeasureSpec.UNSPECIFIED, View.MeasureSpec.UNSPECIFIED);
-                        final RelativeLayout frameCamContainerLayout = (RelativeLayout) view.findViewById(getResources().getIdentifier("frame_camera_cont", "id", appResourcesPackage));
+            final FrameLayout newFrameContainerLayout = (FrameLayout) view.findViewById(getResources().getIdentifier("frame_container", "id", appResourcesPackage));
 
-                        FrameLayout.LayoutParams camViewLayout = new FrameLayout.LayoutParams(frameContainerLayout.getWidth(), frameContainerLayout.getHeight());
-                        camViewLayout.gravity = Gravity.CENTER_HORIZONTAL | Gravity.CENTER_VERTICAL;
-                        frameCamContainerLayout.setLayoutParams(camViewLayout);
-                    } catch (Exception e) {
-                        Log.d(TAG, e.getMessage());
-                        e.printStackTrace();
+            ViewTreeObserver viewTreeObserver = newFrameContainerLayout.getViewTreeObserver();
+
+            if (viewTreeObserver.isAlive()) {
+                viewTreeObserver.addOnGlobalLayoutListener(new ViewTreeObserver.OnGlobalLayoutListener() {
+                    @Override
+                    public void onGlobalLayout() {
+                        try {
+                            newFrameContainerLayout.getViewTreeObserver().removeGlobalOnLayoutListener(this);
+                            newFrameContainerLayout.measure(View.MeasureSpec.UNSPECIFIED, View.MeasureSpec.UNSPECIFIED);
+                            final RelativeLayout frameCamContainerLayout = (RelativeLayout) view.findViewById(getResources().getIdentifier("frame_camera_cont", "id", appResourcesPackage));
+
+                            FrameLayout.LayoutParams camViewLayout = new FrameLayout.LayoutParams(newFrameContainerLayout.getWidth(), newFrameContainerLayout.getHeight());
+                            camViewLayout.gravity = Gravity.CENTER_HORIZONTAL | Gravity.CENTER_VERTICAL;
+                            frameCamContainerLayout.setLayoutParams(camViewLayout);
+                        } catch (Exception e) {
+                            Log.d(TAG, e.getMessage());
+                            e.printStackTrace();
+                        }
                     }
-                }
-            });
+                });
+            }
         }
     } catch (Exception e) {
         e.printStackTrace();
@@ -328,7 +334,7 @@ public class CameraActivity extends Fragment {
 
     // Because the Camera object is a shared resource, it's very important to release it when the activity is paused.
     if (mCamera != null) {
-      setDefaultCameraId();
+//      setDefaultCameraId();
       mPreview.setCamera(null, -1);
       mCamera.setPreviewCallback(null);
       mCamera.release();

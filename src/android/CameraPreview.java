@@ -337,6 +337,11 @@ public class CameraPreview extends CordovaPlugin implements CameraActivity.Camer
     startCameraCallbackContext.sendPluginResult(pluginResult);
   }
 
+    public void onCameraStartedError(String message) {
+        Log.d(TAG, "CameraPreview onPictureTakenError");
+        startCameraCallbackContext.error(message);
+    }
+
   private boolean takePicture(int width, int height, int quality, CallbackContext callbackContext) {
     if(this.hasView(callbackContext) == false){
       return true;

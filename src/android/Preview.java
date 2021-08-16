@@ -73,7 +73,7 @@ class Preview extends RelativeLayout implements TextureView.SurfaceTextureListen
   public boolean onSurfaceTextureDestroyed(SurfaceTexture surface) {
     try {
       if (mCamera != null) {
-        //mCamera.stopPreview();
+        mCamera.stopPreview();
       }
     } catch (Exception exception) {
       Log.e(TAG, "Exception caused by surfaceDestroyed()", exception);
@@ -86,9 +86,9 @@ class Preview extends RelativeLayout implements TextureView.SurfaceTextureListen
   }
 
   public void setCamera(Camera camera, int cameraId) {
+    mCamera = camera;
+    this.cameraId = cameraId;
     if (camera != null) {
-      mCamera = camera;
-      this.cameraId = cameraId;
       mSupportedPreviewSizes = mCamera.getParameters().getSupportedPreviewSizes();
       setCameraDisplayOrientation();
 
