@@ -271,15 +271,17 @@ class Preview extends RelativeLayout implements TextureView.SurfaceTextureListen
     Camera.Size optimalSize = null;
     double minDiff = Double.MAX_VALUE;
 
-    int targetHeight = h;
+    int targetHeight = 1200;
+    int targetWidth = 1600;
+    int targetResolution = targetHeight * targetWidth;
 
     // Try to find an size match aspect ratio and size
     for (Camera.Size size : sizes) {
       double ratio = (double) Math.min(size.width, size.height) / Math.max(size.width, size.height);
       if (Math.abs(ratio - targetRatio) > ASPECT_TOLERANCE) continue;
-      if (Math.abs(size.height - targetHeight) < minDiff) {
+      if (Math.abs(size.height * size.width - targetResolution) < minDiff) {
         optimalSize = size;
-        minDiff = Math.abs(size.height - targetHeight);
+        minDiff = Math.abs(size.height * size.width - targetResolution);
       }
     }
 
@@ -287,9 +289,9 @@ class Preview extends RelativeLayout implements TextureView.SurfaceTextureListen
     if (optimalSize == null) {
       minDiff = Double.MAX_VALUE;
       for (Camera.Size size : sizes) {
-        if (Math.abs(size.height - targetHeight) < minDiff) {
+        if (Math.abs(size.height * size.width - targetResolution) < minDiff) {
           optimalSize = size;
-          minDiff = Math.abs(size.height - targetHeight);
+          minDiff = Math.abs(size.height * size.width - targetResolution);
         }
       }
     }
