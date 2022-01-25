@@ -262,7 +262,10 @@ class Preview extends RelativeLayout implements TextureView.SurfaceTextureListen
 
   private Camera.Size getOptimalPreviewSize(List<Camera.Size> sizes, int w, int h) {
     final double ASPECT_TOLERANCE = 0.1;
-    double targetRatio = (double) Math.min(w, h) / Math.max(w, h);
+    double targetRatio = (double) w / h;
+    if (displayOrientation == 90 || displayOrientation == 270) {
+      targetRatio = (double) h / w;
+    }
 
     if(sizes == null){
       return null;
@@ -277,7 +280,7 @@ class Preview extends RelativeLayout implements TextureView.SurfaceTextureListen
 
     // Try to find an size match aspect ratio and size
     for (Camera.Size size : sizes) {
-      double ratio = (double) Math.min(size.width, size.height) / Math.max(size.width, size.height);
+      double ratio = (double) size.width / size.height;
       if (Math.abs(ratio - targetRatio) > ASPECT_TOLERANCE) continue;
       if (Math.abs(size.height * size.width - targetResolution) < minDiff) {
         optimalSize = size;
