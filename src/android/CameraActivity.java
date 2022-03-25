@@ -494,7 +494,8 @@ public class CameraActivity extends Fragment {
 
     Log.d(TAG, "CameraPreview previewAspectRatio " + previewAspectRatio);
 
-    double aspectTolerance = 0.1;
+    //Change from 0.1 to 0.5, so that it wont filter all big enough resolutions
+    double aspectTolerance = 0.5;
     double bestDifference = Double.MAX_VALUE;
 
     for (int i = 0; i < supportedSizes.size(); i++) {
