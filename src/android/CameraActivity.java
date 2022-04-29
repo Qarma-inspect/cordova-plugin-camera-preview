@@ -466,6 +466,7 @@ public class CameraActivity extends Fragment {
     }
   };
 
+  //this function is kept but we don't use it, resolution will be chosen from Javascript side, and pass to takePictureToFile as width and height
   public Camera.Size getOptimalPictureSize(final int width, final int height, final Camera.Size previewSize, final List<Camera.Size> supportedSizes) {
     /*
       get the supportedPictureSize that:
@@ -494,7 +495,8 @@ public class CameraActivity extends Fragment {
 
     Log.d(TAG, "CameraPreview previewAspectRatio " + previewAspectRatio);
 
-    double aspectTolerance = 0.1;
+    //Change from 0.1 to 0.5, so that it wont filter all big enough resolutions
+    double aspectTolerance = 0.5;
     double bestDifference = Double.MAX_VALUE;
 
     for (int i = 0; i < supportedSizes.size(); i++) {
@@ -588,8 +590,7 @@ public class CameraActivity extends Fragment {
 
     Camera.Parameters params = mCamera.getParameters();
 
-    Camera.Size size = getOptimalPictureSize(width, height, params.getPreviewSize(), params.getSupportedPictureSizes());
-    params.setPictureSize(size.width, size.height);
+    params.setPictureSize(width, height);
 
     currentQuality = quality;
 
