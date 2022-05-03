@@ -627,8 +627,16 @@ public class CameraActivity extends Fragment {
               File outputFile = context.getFileStreamPath(targetFileName);
               Bitmap outputData = BitmapFactory.decodeByteArray(data, 0, data.length);
               outputData = applyMatrix(outputData, matrix);
-
-              outputData.compress(Bitmap.CompressFormat.JPEG, quality, outputStream);
+              int imageWidth = outputData.getWidth();
+              int imageHeight= outputData.getHeight();
+              if(imageWidth * imageHeight > 1600 * 1200 && Math.max(imageWidth, imageHeight) / Math.min(imageWidth, imageHeight) == 4/3) {
+                int newWidth = imageWidth > imageHeight ? 1600 : 1200;
+                int newHeight = imageWidth > imageHeight ? 1200 : 1600;
+                Bitmap scaledDownImage = Bitmap.createScaledBitmap(outputData, newWidth, newHeight, false);
+                scaledDownImage.compress(CompressFormat.JPEG, quality, outputStream);
+              } else {
+                outputData.compress(CompressFormat.JPEG, quality, outputStream);
+              }
 
               Rect scaledRect = RectMathUtil.contain(outputData.getWidth(), outputData.getHeight(), 200, 200);
               // turn image to correct aspect ratio.
