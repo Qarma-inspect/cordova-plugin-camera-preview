@@ -1,6 +1,10 @@
 #import <Cordova/CDV.h>
 #import <Cordova/CDVPlugin.h>
 #import <Cordova/CDVInvokedUrlCommand.h>
+#import <UIKit/UIKit.h>
+#import <ImageIO/ImageIO.h>
+#import <MobileCoreServices/MobileCoreServices.h>
+#import "AppDelegate.h"
 
 #import "CameraPreview.h"
 
@@ -681,7 +685,7 @@
         CGFloat scaleWidth = height/fromHeight;
         CGFloat scale = scaleHeight > scaleWidth ? scaleWidth : scaleHeight;
 
-        CIFilter *resizeFilter = [CIFilter filterWithName:@"CILanczosScaleTransform"];
+        CIFilter *resizeFilter = [CIFilter filterWithName:@"CIBicubicScaleTransform"];
         [resizeFilter setValue:imageToResize forKey:kCIInputImageKey];
         [resizeFilter setValue:[NSNumber numberWithFloat:1.0f] forKey:@"inputAspectRatio"];
         [resizeFilter setValue:[NSNumber numberWithFloat:scale] forKey:@"inputScale"];
@@ -699,6 +703,25 @@
     CGFloat initialHeight = capturedImage.size.height;
 
     return [self resizeImage:initialImage fromWidth:initialWidth fromHeight:initialHeight toWidth:width toHeight:height];
+}
+
+- (CGImageRef) resizeImageSource:(CFDataRef) capturedImage maxPixelSize:(CGFloat) maxPixelSize {
+    
+    CGImageSourceRef imageSource = CGImageSourceCreateWithData(capturedImage, nil);
+    CFDictionaryRef options = (__bridge CFDictionaryRef) @{
+            (id) kCGImageSourceCreateThumbnailWithTransform : @YES,
+            (id) kCGImageSourceCreateThumbnailFromImageAlways : @YES,
+            (id) kCGImageSourceThumbnailMaxPixelSize : @(maxPixelSize)
+    };
+    CGImageRef thumbnail = CGImageSourceCreateThumbnailAtIndex(imageSource, 0, options);
+    CFRelease(imageSource);
+    return thumbnail;
+//    CIImage * initialImage =[[CIImage alloc] initWithCGImage:[capturedImage CGImage]];
+//
+//    CGFloat initialWidth = capturedImage.size.width;
+//    CGFloat initialHeight = capturedImage.size.height;
+//
+//    return [self resizeImage:initialImage fromWidth:initialWidth fromHeight:initialHeight toWidth:width toHeight:height];
 }
 
 - (CIImage * ) fixFrontCameraMirror: (CIImage * ) capturedImage forCamera:(AVCaptureDevicePosition)camera {
@@ -835,41 +858,10 @@
             CFAbsoluteTime dataCaptured = CFAbsoluteTimeGetCurrent();
             
             NSData *imageData = [AVCaptureStillImageOutput jpegStillImageNSDataRepresentation:sampleBuffer];
-            UIImage *capturedImage  = [[UIImage alloc] initWithData:imageData];
-            
-            CGFloat heightInPoints = capturedImage.size.height;
-            CGFloat heightInPixels = heightInPoints * capturedImage.scale;
-            
-            CGFloat widthInPoints = capturedImage.size.width;
-            CGFloat widthInPixels = widthInPoints * capturedImage.scale;
-            
-            CGFloat imageAspectRatio = widthInPixels / heightInPixels;
-            CGFloat requestedAspectRatio = width / height;
-            
-            // we need to switch width and height if aspect ratios do not match
-            CGFloat useWidth;
-            CGFloat useHeight;
-            if((imageAspectRatio < 1 && requestedAspectRatio < 1) ||
-               (imageAspectRatio > 1 && requestedAspectRatio > 1)) {
-                // aspect ratios match
-                useHeight = height;
-                useWidth = width;
-            } else {
-                // aspect ratios are switched around.
-                useHeight = width;
-                useWidth = height;
-            }
-            
-            CIImage *capturedCImage = [self resizeImage:capturedImage toWidth:useWidth toHeight:useHeight];
-            
-            CIImage *imageToFilter = [self fixFrontCameraMirror:capturedCImage forCamera:self.sessionManager.defaultCamera];
-            CIImage *finalCImage = [self filterImage:imageToFilter];
-            CGImageRef resultFinalImage = [self rotateImage:finalCImage withDegrees: rotation];
-            
-            CIImage *capturedCImageThumbnail = [self resizeImage:capturedCImage fromWidth:useWidth fromHeight:useHeight toWidth:200 toHeight:200];
-            CIImage *imageToFilterThumbnail = [self fixFrontCameraMirror:capturedCImageThumbnail forCamera:self.sessionManager.defaultCamera];
-            CIImage *finalCImageThumbnail = [self filterImage:imageToFilterThumbnail];
-            CGImageRef resultFinalImageThumbnail = [self rotateImage:finalCImageThumbnail withDegrees: rotation];
+
+            CFDataRef imgDataRef = (CFDataRef) CFBridgingRetain(imageData);
+            CGImageRef capturedImageRef = [self resizeImageSource:imgDataRef maxPixelSize:1600];
+            CGImageRef thumbnailImageRef = [self resizeImageSource:imgDataRef maxPixelSize:200];
             
             NSArray *paths = NSSearchPathForDirectoriesInDomains(NSLibraryDirectory, NSUserDomainMask, YES);
             NSString* rootPath = paths[0];
@@ -884,15 +876,11 @@
             
             NSError *writeError = nil;
             
-            UIImage * finalUIImage = [[UIImage alloc] initWithCGImage:resultFinalImage];
-            NSData * jpegData = [NSData dataWithData:UIImageJPEGRepresentation(finalUIImage, quality)];
-            [jpegData writeToFile:fullPath options:NSDataWritingAtomic error:&writeError];
-            CGImageRelease(resultFinalImage); // release CGImageRef to remove memory leaks
-            
-            UIImage * finalUIImageThumbnail = [[UIImage alloc] initWithCGImage:resultFinalImageThumbnail];
-            NSData * jpegDataThumbnail = [NSData dataWithData:UIImageJPEGRepresentation(finalUIImageThumbnail, quality)];
-            [jpegDataThumbnail writeToFile:thumbPath options:NSDataWritingAtomic error:&writeError];
-            CGImageRelease(resultFinalImageThumbnail); // release CGImageRef to remove memory leaks
+            CGImageWriteToFile(capturedImageRef, fullPath);
+            CGImageWriteToFile(thumbnailImageRef, thumbPath);
+            CFRelease(capturedImageRef);
+            CFRelease(thumbnailImageRef);
+            CFRelease(imgDataRef);
             
             CFAbsoluteTime imagesWrittenToDisk = CFAbsoluteTimeGetCurrent();
             
@@ -903,11 +891,6 @@
             [params addObject:@(dataCaptured)];
             [params addObject:@(imagesRotated)];
             [params addObject:@(imagesWrittenToDisk)];
-
-            [params addObject:@(widthInPoints)];
-            [params addObject:@(heightInPoints)];
-            [params addObject:@(widthInPixels)];
-            [params addObject:@(heightInPixels)];
             
             if(writeError){
                 CDVPluginResult *pluginResult = [CDVPluginResult resultWithStatus:CDVCommandStatus_ERROR messageAsString:@"Error while writing files."];
@@ -920,6 +903,27 @@
             }
         }
     }];
+}
+
+void CGImageWriteToFile(CGImageRef image, NSString *path) {
+    CFURLRef url = (__bridge CFURLRef) [NSURL fileURLWithPath:path];
+    int32_t orientation = kCGImagePropertyOrientationLeft;
+    
+    CFDictionaryRef options = (__bridge CFDictionaryRef) @{
+        (id) kCGImagePropertyOrientation : @(kCGImagePropertyOrientationUp)
+    };
+    
+    CGImageDestinationRef destination = CGImageDestinationCreateWithURL(url, kUTTypeJPEG, 1, options);
+    
+    CGImageDestinationAddImage(destination, image, nil);
+    
+
+    if (!CGImageDestinationFinalize(destination)) {
+        NSLog(@"Failed to write image to %@", path);
+    }
+    
+//    CFRelease(url);
+    CFRelease(destination);
 }
 
 - (void) invokeTakePicture:(CGFloat) width withHeight:(CGFloat) height withQuality:(CGFloat) quality{
