@@ -705,23 +705,18 @@
     return [self resizeImage:initialImage fromWidth:initialWidth fromHeight:initialHeight toWidth:width toHeight:height];
 }
 
-- (CGImageRef) resizeImageSource:(CFDataRef) capturedImage maxPixelSize:(CGFloat) maxPixelSize {
+- (CGImageRef) resizeImageSource:(CFDataRef) capturedImage maxPixelSize:(CGFloat) maxPixelSize rotationAngle: (int) rotationAngle {
     
     CGImageSourceRef imageSource = CGImageSourceCreateWithData(capturedImage, nil);
     CFDictionaryRef options = (__bridge CFDictionaryRef) @{
-            (id) kCGImageSourceCreateThumbnailWithTransform : @YES,
-            (id) kCGImageSourceCreateThumbnailFromImageAlways : @YES,
-            (id) kCGImageSourceThumbnailMaxPixelSize : @(maxPixelSize)
+        (id) kCGImageSourceCreateThumbnailWithTransform: @YES,
+        (id) kCGImageSourceCreateThumbnailFromImageAlways : @YES,
+        (id) kCGImageSourceThumbnailMaxPixelSize : @(maxPixelSize),
+        (id) kCGImagePropertyOrientation: @(rotationAngle)
     };
     CGImageRef thumbnail = CGImageSourceCreateThumbnailAtIndex(imageSource, 0, options);
     CFRelease(imageSource);
     return thumbnail;
-//    CIImage * initialImage =[[CIImage alloc] initWithCGImage:[capturedImage CGImage]];
-//
-//    CGFloat initialWidth = capturedImage.size.width;
-//    CGFloat initialHeight = capturedImage.size.height;
-//
-//    return [self resizeImage:initialImage fromWidth:initialWidth fromHeight:initialHeight toWidth:width toHeight:height];
 }
 
 - (CIImage * ) fixFrontCameraMirror: (CIImage * ) capturedImage forCamera:(AVCaptureDevicePosition)camera {
@@ -835,6 +830,8 @@
     }
 }
 
+
+
 - (void) invokeTakePicture:(CGFloat) width
                 withHeight:(CGFloat) height
                withQuality:(CGFloat) quality
@@ -854,32 +851,31 @@
             NSLog(@"%@", error);
             return;
         } else {
-            
-            CFAbsoluteTime dataCaptured = CFAbsoluteTimeGetCurrent();
-            
-            NSData *imageData = [AVCaptureStillImageOutput jpegStillImageNSDataRepresentation:sampleBuffer];
-
-            CFDataRef imgDataRef = (CFDataRef) CFBridgingRetain(imageData);
-            CGImageRef capturedImageRef = [self resizeImageSource:imgDataRef maxPixelSize:1600];
-            CGImageRef thumbnailImageRef = [self resizeImageSource:imgDataRef maxPixelSize:200];
-            
             NSArray *paths = NSSearchPathForDirectoriesInDomains(NSLibraryDirectory, NSUserDomainMask, YES);
             NSString* rootPath = paths[0];
             NSString* path = [rootPath stringByAppendingPathComponent:@"NoCloud"];
-            
             NSString* fullPath = [path stringByAppendingFormat: @"/%@", fileName];
             NSString * thumbPath = [path stringByAppendingFormat: @"/%@", thumbnailFileName];
             NSLog(@"%@", path);
             NSLog(@"%@", thumbPath);
             
-            CFAbsoluteTime imagesRotated = CFAbsoluteTimeGetCurrent();
+            CFAbsoluteTime dataCaptured = CFAbsoluteTimeGetCurrent();
+            
+            NSData *imageData = [AVCaptureStillImageOutput jpegStillImageNSDataRepresentation:sampleBuffer];
+            CFDataRef imgDataRef = (CFDataRef) CFBridgingRetain(imageData);
+            int orientation = [self getRotationIndex:rotation];
+            
+            // resize, rotate and write image to disk
+            CGImageRef capturedImageRef = [self resizeImageSource:imgDataRef maxPixelSize:1600 rotationAngle:orientation];
+            CGImageWriteToFile(capturedImageRef, fullPath);
+            CFRelease(capturedImageRef);
+            
+            // resize, rotate and write thumbnail image to disk
+            CGImageRef thumbnailImageRef = [self resizeImageSource:imgDataRef maxPixelSize:200 rotationAngle:orientation];
+            CGImageWriteToFile(thumbnailImageRef, thumbPath);
+            CFRelease(thumbnailImageRef);
             
             NSError *writeError = nil;
-            
-            CGImageWriteToFile(capturedImageRef, fullPath);
-            CGImageWriteToFile(thumbnailImageRef, thumbPath);
-            CFRelease(capturedImageRef);
-            CFRelease(thumbnailImageRef);
             CFRelease(imgDataRef);
             
             CFAbsoluteTime imagesWrittenToDisk = CFAbsoluteTimeGetCurrent();
@@ -889,7 +885,6 @@
             [params addObject:thumbnailFileName];
             [params addObject:@(start)];
             [params addObject:@(dataCaptured)];
-            [params addObject:@(imagesRotated)];
             [params addObject:@(imagesWrittenToDisk)];
             
             if(writeError){
@@ -907,23 +902,29 @@
 
 void CGImageWriteToFile(CGImageRef image, NSString *path) {
     CFURLRef url = (__bridge CFURLRef) [NSURL fileURLWithPath:path];
-    int32_t orientation = kCGImagePropertyOrientationLeft;
-    
-    CFDictionaryRef options = (__bridge CFDictionaryRef) @{
-        (id) kCGImagePropertyOrientation : @(kCGImagePropertyOrientationUp)
-    };
-    
-    CGImageDestinationRef destination = CGImageDestinationCreateWithURL(url, kUTTypeJPEG, 1, options);
+    CGImageDestinationRef destination = CGImageDestinationCreateWithURL(url, kUTTypeJPEG, 1, nil);
     
     CGImageDestinationAddImage(destination, image, nil);
-    
 
     if (!CGImageDestinationFinalize(destination)) {
         NSLog(@"Failed to write image to %@", path);
     }
     
-//    CFRelease(url);
     CFRelease(destination);
+}
+
+- (int) getRotationIndex:(double) angle {
+    if(angle == 0.0) {
+        return kCGImagePropertyOrientationUp;
+    } else if (angle == 90.0) {
+        return kCGImagePropertyOrientationLeft;
+    } else if (angle == 180.0) {
+        return kCGImagePropertyOrientationDown;
+    } else if (angle == 270.0) {
+        return kCGImagePropertyOrientationRight;
+    } else {
+        return kCGImagePropertyOrientationUp;
+    }
 }
 
 - (void) invokeTakePicture:(CGFloat) width withHeight:(CGFloat) height withQuality:(CGFloat) quality{

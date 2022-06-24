@@ -15,6 +15,11 @@
   return self;
 }
 
+- (void) viewDidDisappear:(BOOL)animated {
+    [super viewDidDisappear:animated];
+    CFRelease(_videoTextureCache);
+}
+
 - (void)loadView {
   GLKView *glkView = [[GLKView alloc] init];
   [glkView setBackgroundColor:[UIColor blackColor]];
