@@ -867,12 +867,12 @@
             
             // resize, rotate and write image to disk
             CGImageRef capturedImageRef = [self resizeImageSource:imgDataRef maxPixelSize:1600 rotationAngle:orientation];
-            CGImageWriteToFile(capturedImageRef, fullPath);
+            CGImageWriteToFile(capturedImageRef, fullPath, quality);
             CFRelease(capturedImageRef);
             
             // resize, rotate and write thumbnail image to disk
             CGImageRef thumbnailImageRef = [self resizeImageSource:imgDataRef maxPixelSize:200 rotationAngle:orientation];
-            CGImageWriteToFile(thumbnailImageRef, thumbPath);
+            CGImageWriteToFile(thumbnailImageRef, thumbPath, 1);
             CFRelease(thumbnailImageRef);
             
             NSError *writeError = nil;
@@ -900,12 +900,16 @@
     }];
 }
 
-void CGImageWriteToFile(CGImageRef image, NSString *path) {
+void CGImageWriteToFile(CGImageRef image, NSString *path, CGFloat quality) {
     CFURLRef url = (__bridge CFURLRef) [NSURL fileURLWithPath:path];
+    
     CGImageDestinationRef destination = CGImageDestinationCreateWithURL(url, kUTTypeJPEG, 1, nil);
     
-    CGImageDestinationAddImage(destination, image, nil);
-
+    CFDictionaryRef options = (__bridge CFDictionaryRef) @{
+           (id) kCGImageDestinationLossyCompressionQuality: @(quality)
+    };
+    CGImageDestinationAddImage(destination, image, options);
+    
     if (!CGImageDestinationFinalize(destination)) {
         NSLog(@"Failed to write image to %@", path);
     }
