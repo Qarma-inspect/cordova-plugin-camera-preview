@@ -4,7 +4,6 @@
 #import <OpenGLES/ES2/glext.h>
 
 @implementation CameraRenderController
-@synthesize context = _context;
 @synthesize delegate;
 
 
@@ -17,7 +16,7 @@
 
 - (void)loadView {
     // View rect is set by CameraSessionManager.
-    CGRect  viewRect = CGRectMake(0, 0, 0, 0);
+    CGRect viewRect = CGRectMake(0, 0, 0, 0);
     UIView* myView = [[UIView alloc] initWithFrame:viewRect];
     [self setView: myView];
 }
@@ -67,15 +66,13 @@
       dispatch_async(dispatch_get_main_queue(), ^{
           AVCaptureVideoPreviewLayer * previewLayer = [AVCaptureVideoPreviewLayer layerWithSession:self.sessionManager.session];
 
-          [previewLayer setVideoGravity: AVLayerVideoGravityResize];
+          [previewLayer setVideoGravity: AVLayerVideoGravityResizeAspectFill];
           [previewLayer setAnchorPoint: self.view.bounds.origin];
           [previewLayer setFrame:self.view.frame];
           // without this part, the video preview is offset and looks wierd.
-          CGRect rect = CGRectMake(self.view.bounds.origin.x, self.view.bounds.origin.y, self.view.frame.size.width,  self.view.frame.size.height);
-          [previewLayer setFrame: rect];
-
-
+          [previewLayer setFrame:CGRectMake(self.view.bounds.origin.x, self.view.bounds.origin.y, self.view.frame.size.width,  self.view.frame.size.height)];
           [self.view.layer insertSublayer:previewLayer atIndex:0];
+
           dispatch_async(self.sessionManager.sessionQueue, ^{
               NSLog(@"Starting session");
               [self.sessionManager.session startRunning];
@@ -146,11 +143,7 @@
   dispatch_async(self.sessionManager.sessionQueue, ^{
       NSLog(@"Stopping session");
       [self.sessionManager.session stopRunning];
-      });
-}
-
--(void)captureOutput:(AVCaptureOutput *)captureOutput didOutputSampleBuffer:(CMSampleBufferRef)sampleBuffer fromConnection:(AVCaptureConnection *)connection {
-
+  });
 }
 
 - (void)didReceiveMemoryWarning {
