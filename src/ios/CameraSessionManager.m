@@ -140,7 +140,9 @@
       if ([self.session canAddOutput:dataOutput]) {
         self.dataOutput = dataOutput;
         [dataOutput setAlwaysDiscardsLateVideoFrames:YES];
-        [dataOutput setVideoSettings:[NSDictionary dictionaryWithObject:[NSNumber numberWithInt:kCVPixelFormatType_32BGRA] forKey:(id)kCVPixelBufferPixelFormatTypeKey]];
+        // We have no need to enforce an alpha channel. Let the preset select the pixel format.
+        // In practice, this means that we use a lot less memory while previewing the camera.
+        // [dataOutput setVideoSettings:[NSDictionary dictionaryWithObject:[NSNumber numberWithInt:kCVPixelFormatType_32BGRA] forKey:(id)kCVPixelBufferPixelFormatTypeKey]];
 
         [dataOutput setSampleBufferDelegate:self.delegate queue:self.sessionQueue];
 
