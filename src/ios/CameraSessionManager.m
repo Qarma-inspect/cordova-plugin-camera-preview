@@ -140,7 +140,7 @@
       if ([self.session canAddOutput:dataOutput]) {
         self.dataOutput = dataOutput;
         [dataOutput setAlwaysDiscardsLateVideoFrames:YES];
-        [dataOutput setVideoSettings:[NSDictionary dictionaryWithObject:[NSNumber numberWithInt:kCVPixelFormatType_32BGRA] forKey:(id)kCVPixelBufferPixelFormatTypeKey]];
+        // [dataOutput setVideoSettings:[NSDictionary dictionaryWithObject:[NSNumber numberWithInt:kCVPixelFormatType_32BGRA] forKey:(id)kCVPixelBufferPixelFormatTypeKey]];
 
         [dataOutput setSampleBufferDelegate:self.delegate queue:self.sessionQueue];
 
