@@ -18,11 +18,7 @@
 - (void) invokeTapToFocus:(CGPoint)point;
 @end;
 
-@interface CameraRenderController : UIViewController <AVCaptureVideoDataOutputSampleBufferDelegate, OnFocusDelegate> {
-  GLuint _renderBuffer;
-  CVOpenGLESTextureCacheRef _videoTextureCache;
-  CVOpenGLESTextureRef _lumaTexture;
-}
+@interface CameraRenderController : UIViewController <AVCaptureVideoDataOutputSampleBufferDelegate, OnFocusDelegate> {}
 
 @property (nonatomic) CameraSessionManager *sessionManager;
 @property (nonatomic) CIContext *ciContext;

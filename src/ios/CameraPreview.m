@@ -706,7 +706,7 @@
 }
 
 - (CGImageRef) resizeImageSource:(CFDataRef) capturedImage maxPixelSize:(CGFloat) maxPixelSize rotationAngle: (int) rotationAngle {
-    
+
     CGImageSourceRef imageSource = CGImageSourceCreateWithData(capturedImage, nil);
     CFDictionaryRef options = (__bridge CFDictionaryRef) @{
         (id) kCGImageSourceCreateThumbnailWithTransform: @YES,
@@ -839,12 +839,12 @@
              rotateDegrees:(double) rotation
             withCallbackId:(NSString *) callbackId {
     NSString * thumbnailFileName = [@"thumb-" stringByAppendingString:fileName];
-    
+
     CFAbsoluteTime start = CFAbsoluteTimeGetCurrent();
-    
+
     AVCaptureConnection *connection = [self.sessionManager.stillImageOutput connectionWithMediaType:AVMediaTypeVideo];
     [self.sessionManager.stillImageOutput captureStillImageAsynchronouslyFromConnection:(connection) completionHandler:^(CMSampleBufferRef sampleBuffer, NSError *error) {
-        
+
         if (error) {
             CDVPluginResult *pluginResult = [CDVPluginResult resultWithStatus:CDVCommandStatus_ERROR messageAsString:@"Error after calling captureStillImage."];
             [self.commandDelegate sendPluginResult:pluginResult callbackId: callbackId];
@@ -856,37 +856,35 @@
             NSString* path = [rootPath stringByAppendingPathComponent:@"NoCloud"];
             NSString* fullPath = [path stringByAppendingFormat: @"/%@", fileName];
             NSString * thumbPath = [path stringByAppendingFormat: @"/%@", thumbnailFileName];
-            NSLog(@"%@", path);
-            NSLog(@"%@", thumbPath);
-            
+
             CFAbsoluteTime dataCaptured = CFAbsoluteTimeGetCurrent();
-            
+
             NSData *imageData = [AVCaptureStillImageOutput jpegStillImageNSDataRepresentation:sampleBuffer];
             CFDataRef imgDataRef = (CFDataRef) CFBridgingRetain(imageData);
             int orientation = [self getRotationIndex:rotation];
-            
+
             // resize, rotate and write image to disk
             CGImageRef capturedImageRef = [self resizeImageSource:imgDataRef maxPixelSize:1600 rotationAngle:orientation];
             CGImageWriteToFile(capturedImageRef, fullPath, quality);
             CFRelease(capturedImageRef);
-            
+
             // resize, rotate and write thumbnail image to disk
             CGImageRef thumbnailImageRef = [self resizeImageSource:imgDataRef maxPixelSize:200 rotationAngle:orientation];
             CGImageWriteToFile(thumbnailImageRef, thumbPath, 1);
             CFRelease(thumbnailImageRef);
-            
+
             NSError *writeError = nil;
             CFRelease(imgDataRef);
-            
+
             CFAbsoluteTime imagesWrittenToDisk = CFAbsoluteTimeGetCurrent();
-            
+
             NSMutableArray *params = [[NSMutableArray alloc] init];
             [params addObject:fileName];
             [params addObject:thumbnailFileName];
             [params addObject:@(start)];
             [params addObject:@(dataCaptured)];
             [params addObject:@(imagesWrittenToDisk)];
-            
+
             if(writeError){
                 CDVPluginResult *pluginResult = [CDVPluginResult resultWithStatus:CDVCommandStatus_ERROR messageAsString:@"Error while writing files."];
                 [self.commandDelegate sendPluginResult:pluginResult callbackId: callbackId];
@@ -902,18 +900,18 @@
 
 void CGImageWriteToFile(CGImageRef image, NSString *path, CGFloat quality) {
     CFURLRef url = (__bridge CFURLRef) [NSURL fileURLWithPath:path];
-    
+
     CGImageDestinationRef destination = CGImageDestinationCreateWithURL(url, kUTTypeJPEG, 1, nil);
-    
+
     CFDictionaryRef options = (__bridge CFDictionaryRef) @{
            (id) kCGImageDestinationLossyCompressionQuality: @(quality)
     };
     CGImageDestinationAddImage(destination, image, options);
-    
+
     if (!CGImageDestinationFinalize(destination)) {
         NSLog(@"Failed to write image to %@", path);
     }
-    
+
     CFRelease(destination);
 }
 
@@ -940,18 +938,22 @@ void CGImageWriteToFile(CGImageRef image, NSString *path, CGFloat quality) {
       if (error) {
         NSLog(@"%@", error);
       } else {
+
         NSData *imageData = [AVCaptureStillImageOutput jpegStillImageNSDataRepresentation:sampleBuffer];
         UIImage *capturedImage  = [[UIImage alloc] initWithData:imageData];
         CIImage *capturedCImage = [self resizeImage:capturedImage toWidth:width toHeight:height];
 
         CIImage *imageToFilter = [self fixFrontCameraMirror:capturedCImage forCamera:self.sessionManager.defaultCamera];
         CIImage *finalCImage = [self filterImage:imageToFilter];
-        
+
+        // TODO. This does not work at all any more.
+        // There is no CI context anymore, so it can not do any rotations.
+        // Should be implemented with IOFramework anyway.
         CGImageRef resultFinalImage = [self rotateImage:finalCImage withDegrees:0.0];
 
         NSString *base64Image = [self getBase64Image:resultFinalImage withQuality:quality];
 
-        CGImageRelease(resultFinalImage); // release CGImageRef to remove memory leaks
+         CGImageRelease(resultFinalImage); // release CGImageRef to remove memory leaks
 
         NSMutableArray *params = [[NSMutableArray alloc] init];
         [params addObject:base64Image];
