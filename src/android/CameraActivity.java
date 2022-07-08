@@ -632,7 +632,7 @@ public class CameraActivity extends Fragment {
               if(imageWidth * imageHeight > 1600 * 1200 && Math.max(imageWidth, imageHeight) / Math.min(imageWidth, imageHeight) == 4/3) {
                 int newWidth = imageWidth > imageHeight ? 1600 : 1200;
                 int newHeight = imageWidth > imageHeight ? 1200 : 1600;
-                Bitmap scaledDownImage = Bitmap.createScaledBitmap(outputData, newWidth, newHeight, false);
+                Bitmap scaledDownImage = Bitmap.createScaledBitmap(outputData, newWidth, newHeight, true);
                 scaledDownImage.compress(CompressFormat.JPEG, quality, outputStream);
               } else {
                 outputData.compress(CompressFormat.JPEG, quality, outputStream);
