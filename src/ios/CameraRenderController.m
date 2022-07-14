@@ -4,7 +4,6 @@
 #import <OpenGLES/ES2/glext.h>
 
 @implementation CameraRenderController
-@synthesize context = _context;
 @synthesize delegate;
 
 
@@ -16,35 +15,14 @@
 }
 
 - (void)loadView {
-  GLKView *glkView = [[GLKView alloc] init];
-  [glkView setBackgroundColor:[UIColor blackColor]];
-  [self setView:glkView];
+    // View rect is set by CameraSessionManager.
+    CGRect viewRect = CGRectMake(0, 0, 0, 0);
+    UIView* myView = [[UIView alloc] initWithFrame:viewRect];
+    [self setView: myView];
 }
 
 - (void)viewDidLoad {
   [super viewDidLoad];
-
-  self.context = [[EAGLContext alloc] initWithAPI:kEAGLRenderingAPIOpenGLES2];
-
-  if (!self.context) {
-    NSLog(@"Failed to create ES context");
-  }
-
-  CVReturn err = CVOpenGLESTextureCacheCreate(kCFAllocatorDefault, NULL, self.context, NULL, &_videoTextureCache);
-  if (err) {
-    NSLog(@"Error at CVOpenGLESTextureCacheCreate %d", err);
-    return;
-  }
-
-  GLKView *view = (GLKView *)self.view;
-  view.context = self.context;
-  view.drawableDepthFormat = GLKViewDrawableDepthFormat24;
-  view.contentMode = UIViewContentModeScaleToFill;
-
-  glGenRenderbuffers(1, &_renderBuffer);
-  glBindRenderbuffer(GL_RENDERBUFFER, _renderBuffer);
-
-  self.ciContext = [CIContext contextWithEAGLContext:self.context];
 
   if (self.dragEnabled) {
     //add drag action listener
@@ -84,10 +62,21 @@
                                            selector:@selector(applicationEnteredForeground:)
                                                name:UIApplicationWillEnterForegroundNotification
                                              object:nil];
+     // main thread is responsible for setting views.
+      dispatch_async(dispatch_get_main_queue(), ^{
+          AVCaptureVideoPreviewLayer * previewLayer = [AVCaptureVideoPreviewLayer layerWithSession:self.sessionManager.session];
 
-  dispatch_async(self.sessionManager.sessionQueue, ^{
-      NSLog(@"Starting session");
-      [self.sessionManager.session startRunning];
+          [previewLayer setVideoGravity: AVLayerVideoGravityResizeAspectFill];
+          [previewLayer setAnchorPoint: self.view.bounds.origin];
+          [previewLayer setFrame:self.view.frame];
+          // without this part, the video preview is offset and looks wierd.
+          [previewLayer setFrame:CGRectMake(self.view.bounds.origin.x, self.view.bounds.origin.y, self.view.frame.size.width,  self.view.frame.size.height)];
+          [self.view.layer insertSublayer:previewLayer atIndex:0];
+
+          dispatch_async(self.sessionManager.sessionQueue, ^{
+              NSLog(@"Starting session");
+              [self.sessionManager.session startRunning];
+          });
       });
 }
 
@@ -154,83 +143,11 @@
   dispatch_async(self.sessionManager.sessionQueue, ^{
       NSLog(@"Stopping session");
       [self.sessionManager.session stopRunning];
-      });
-}
-
--(void)captureOutput:(AVCaptureOutput *)captureOutput didOutputSampleBuffer:(CMSampleBufferRef)sampleBuffer fromConnection:(AVCaptureConnection *)connection {
-  if ([self.renderLock tryLock]) {
-    CVPixelBufferRef pixelBuffer = (CVPixelBufferRef)CMSampleBufferGetImageBuffer(sampleBuffer);
-    CIImage *image = [CIImage imageWithCVPixelBuffer:pixelBuffer];
-
-
-    CGFloat scaleHeight = self.view.frame.size.height/image.extent.size.height;
-    CGFloat scaleWidth = self.view.frame.size.width/image.extent.size.width;
-
-    CGFloat scale, x, y;
-    if (scaleHeight < scaleWidth) {
-      scale = scaleWidth;
-      x = 0;
-      y = ((scale * image.extent.size.height) - self.view.frame.size.height ) / 2;
-    } else {
-      scale = scaleHeight;
-      x = ((scale * image.extent.size.width) - self.view.frame.size.width )/ 2;
-      y = 0;
-    }
-
-    // scale - translate
-    CGAffineTransform xscale = CGAffineTransformMakeScale(scale, scale);
-    CGAffineTransform xlate = CGAffineTransformMakeTranslation(-x, -y);
-    CGAffineTransform xform =  CGAffineTransformConcat(xscale, xlate);
-
-    CIFilter *centerFilter = [CIFilter filterWithName:@"CIAffineTransform"  keysAndValues:
-      kCIInputImageKey, image,
-      kCIInputTransformKey, [NSValue valueWithBytes:&xform objCType:@encode(CGAffineTransform)],
-      nil];
-
-    CIImage *transformedImage = [centerFilter outputImage];
-
-    // crop
-    CIFilter *cropFilter = [CIFilter filterWithName:@"CICrop"];
-    CIVector *cropRect = [CIVector vectorWithX:0 Y:0 Z:self.view.frame.size.width W:self.view.frame.size.height];
-    [cropFilter setValue:transformedImage forKey:kCIInputImageKey];
-    [cropFilter setValue:cropRect forKey:@"inputRectangle"];
-    CIImage *croppedImage = [cropFilter outputImage];
-
-    //fix front mirroring
-    if (self.sessionManager.defaultCamera == AVCaptureDevicePositionFront) {
-      CGAffineTransform matrix = CGAffineTransformTranslate(CGAffineTransformMakeScale(-1, 1), 0, croppedImage.extent.size.height);
-      croppedImage = [croppedImage imageByApplyingTransform:matrix];
-    }
-
-    self.latestFrame = croppedImage;
-
-    CGFloat pointScale;
-    if ([[UIScreen mainScreen] respondsToSelector:@selector(nativeScale)]) {
-      pointScale = [[UIScreen mainScreen] nativeScale];
-    } else {
-      pointScale = [[UIScreen mainScreen] scale];
-    }
-    CGRect dest = CGRectMake(0, 0, self.view.frame.size.width*pointScale, self.view.frame.size.height*pointScale);
-
-    [self.ciContext drawImage:croppedImage inRect:dest fromRect:[croppedImage extent]];
-    [self.context presentRenderbuffer:GL_RENDERBUFFER];
-    [(GLKView *)(self.view)display];
-    [self.renderLock unlock];
-  }
-}
-
-- (void)viewDidUnload {
-  [super viewDidUnload];
-
-  if ([EAGLContext currentContext] == self.context) {
-    [EAGLContext setCurrentContext:nil];
-  }
-  self.context = nil;
+  });
 }
 
 - (void)didReceiveMemoryWarning {
   [super didReceiveMemoryWarning];
-  // Release any cached data, images, etc. that aren't in use.
 }
 
 - (BOOL)shouldAutorotate {

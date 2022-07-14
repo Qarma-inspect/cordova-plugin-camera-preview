@@ -132,22 +132,16 @@
       AVCaptureStillImageOutput *stillImageOutput = [[AVCaptureStillImageOutput alloc] init];
       if ([self.session canAddOutput:stillImageOutput]) {
         [self.session addOutput:stillImageOutput];
-        [stillImageOutput setOutputSettings:@{AVVideoCodecKey : AVVideoCodecJPEG}];
+        [stillImageOutput setOutputSettings:@{
+            AVVideoCodecKey : AVVideoCodecJPEG,
+            AVVideoQualityKey: @1.f
+        }];
         self.stillImageOutput = stillImageOutput;
       }
 
-      AVCaptureVideoDataOutput *dataOutput = [[AVCaptureVideoDataOutput alloc] init];
-      if ([self.session canAddOutput:dataOutput]) {
-        self.dataOutput = dataOutput;
-        [dataOutput setAlwaysDiscardsLateVideoFrames:YES];
-        [dataOutput setVideoSettings:[NSDictionary dictionaryWithObject:[NSNumber numberWithInt:kCVPixelFormatType_32BGRA] forKey:(id)kCVPixelBufferPixelFormatTypeKey]];
+      dispatch_async(dispatch_get_main_queue(),
+                     ^{ [self updateOrientation:[self getCurrentOrientation]]; });
 
-        [dataOutput setSampleBufferDelegate:self.delegate queue:self.sessionQueue];
-
-        [self.session addOutput:dataOutput];
-      }
-
-      [self updateOrientation:[self getCurrentOrientation]];
       self.device = videoDevice;
 
       completion(success);
@@ -158,12 +152,6 @@
   AVCaptureConnection *captureConnection;
   if (self.stillImageOutput != nil) {
     captureConnection = [self.stillImageOutput connectionWithMediaType:AVMediaTypeVideo];
-    if ([captureConnection isVideoOrientationSupported]) {
-      [captureConnection setVideoOrientation:orientation];
-    }
-  }
-  if (self.dataOutput != nil) {
-    captureConnection = [self.dataOutput connectionWithMediaType:AVMediaTypeVideo];
     if ([captureConnection isVideoOrientationSupported]) {
       [captureConnection setVideoOrientation:orientation];
     }

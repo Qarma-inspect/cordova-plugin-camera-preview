@@ -1,6 +1,10 @@
 #import <Cordova/CDV.h>
 #import <Cordova/CDVPlugin.h>
 #import <Cordova/CDVInvokedUrlCommand.h>
+#import <UIKit/UIKit.h>
+#import <ImageIO/ImageIO.h>
+#import <MobileCoreServices/MobileCoreServices.h>
+#import "AppDelegate.h"
 
 #import "CameraPreview.h"
 
@@ -516,6 +520,8 @@
   [self.commandDelegate sendPluginResult:pluginResult callbackId:command.callbackId];
 }
 
+// TODO this function probably does not work correctly anymore, as the
+// preview layers size is set once, and does not react to this change.
 - (void) setPreviewSize: (CDVInvokedUrlCommand*)command {
 
     CDVPluginResult *pluginResult;
@@ -587,7 +593,6 @@
 }
 
 - (void) tapToFocus:(CDVInvokedUrlCommand*)command {
-  NSLog(@"tapToFocus");
   CDVPluginResult *pluginResult;
 
   CGFloat xPoint = [[command.arguments objectAtIndex:0] floatValue];
@@ -604,62 +609,20 @@
 }
 
 - (double)radiansFromUIImageOrientation:(UIImageOrientation)orientation {
-  double radians;
-
   switch ([[UIApplication sharedApplication] statusBarOrientation]) {
     case UIDeviceOrientationPortrait:
-      radians = M_PI_2;
-      break;
+      return M_PI_2;
     case UIDeviceOrientationLandscapeLeft:
-      radians = 0.f;
-      break;
+      return 0.f;
     case UIDeviceOrientationLandscapeRight:
-      radians = M_PI;
-      break;
+      return M_PI;
     case UIDeviceOrientationPortraitUpsideDown:
-      radians = -M_PI_2;
-      break;
+      return -M_PI_2;
+    case UIDeviceOrientationUnknown:
+      return 0.f;
+    default:
+      return 0.f;
   }
-
-  return radians;
-}
-
--(CGImageRef) CGImageRotated:(CGImageRef) originalCGImage withRadians:(double) radians {
-  CGSize imageSize = CGSizeMake(CGImageGetWidth(originalCGImage), CGImageGetHeight(originalCGImage));
-  CGSize rotatedSize;
-  if (radians == M_PI_2 || radians == -M_PI_2) {
-    rotatedSize = CGSizeMake(imageSize.height, imageSize.width);
-  } else {
-    rotatedSize = imageSize;
-  }
-
-  double rotatedCenterX = rotatedSize.width / 2.f;
-  double rotatedCenterY = rotatedSize.height / 2.f;
-
-  UIGraphicsBeginImageContextWithOptions(rotatedSize, NO, 1.f);
-  CGContextRef rotatedContext = UIGraphicsGetCurrentContext();
-  if (radians == 0.f || radians == M_PI) { // 0 or 180 degrees
-    CGContextTranslateCTM(rotatedContext, rotatedCenterX, rotatedCenterY);
-    if (radians == 0.0f) {
-      CGContextScaleCTM(rotatedContext, 1.f, -1.f);
-    } else {
-      CGContextScaleCTM(rotatedContext, -1.f, 1.f);
-    }
-    CGContextTranslateCTM(rotatedContext, -rotatedCenterX, -rotatedCenterY);
-  } else if (radians == M_PI_2 || radians == -M_PI_2) { // +/- 90 degrees
-    CGContextTranslateCTM(rotatedContext, rotatedCenterX, rotatedCenterY);
-    CGContextRotateCTM(rotatedContext, radians);
-    CGContextScaleCTM(rotatedContext, 1.f, -1.f);
-    CGContextTranslateCTM(rotatedContext, -rotatedCenterY, -rotatedCenterX);
-  }
-
-  CGRect drawingRect = CGRectMake(0.f, 0.f, imageSize.width, imageSize.height);
-  CGContextDrawImage(rotatedContext, drawingRect, originalCGImage);
-  CGImageRef rotatedCGImage = CGBitmapContextCreateImage(rotatedContext);
-
-  UIGraphicsEndImageContext();
-
-  return rotatedCGImage;
 }
 
 - (void) invokeTapToFocus:(CGPoint)point {
@@ -675,30 +638,18 @@
   [self.sessionManager takePictureOnFocus];
 }
 
-- (CIImage *) resizeImage:(CIImage *) imageToResize fromWidth:(CGFloat) fromWidth fromHeight:(CGFloat) fromHeight toWidth:(CGFloat) width toHeight:(CGFloat) height {
-    if(width > 0 && height > 0 && fromWidth > 0 && fromHeight > 0){
-        CGFloat scaleHeight = width/fromWidth;
-        CGFloat scaleWidth = height/fromHeight;
-        CGFloat scale = scaleHeight > scaleWidth ? scaleWidth : scaleHeight;
+- (CGImageRef) resizeAndRotateCGImageRef:(CFDataRef) capturedImage maxPixelSize:(CGFloat) maxPixelSize rotationAngle: (int) rotationAngle {
 
-        CIFilter *resizeFilter = [CIFilter filterWithName:@"CILanczosScaleTransform"];
-        [resizeFilter setValue:imageToResize forKey:kCIInputImageKey];
-        [resizeFilter setValue:[NSNumber numberWithFloat:1.0f] forKey:@"inputAspectRatio"];
-        [resizeFilter setValue:[NSNumber numberWithFloat:scale] forKey:@"inputScale"];
-        return [resizeFilter outputImage];
-    } else {
-        return imageToResize;
-    }
-}
-
-- (CIImage * ) resizeImage:(UIImage *) capturedImage toWidth:(CGFloat) width toHeight:(CGFloat) height {
-
-    CIImage * initialImage =[[CIImage alloc] initWithCGImage:[capturedImage CGImage]];
-
-    CGFloat initialWidth = capturedImage.size.width;
-    CGFloat initialHeight = capturedImage.size.height;
-
-    return [self resizeImage:initialImage fromWidth:initialWidth fromHeight:initialHeight toWidth:width toHeight:height];
+    CGImageSourceRef imageSource = CGImageSourceCreateWithData(capturedImage, nil);
+    CFDictionaryRef options = (__bridge CFDictionaryRef) @{
+        (id) kCGImageSourceCreateThumbnailWithTransform: @YES,
+        (id) kCGImageSourceCreateThumbnailFromImageAlways : @YES,
+        (id) kCGImageSourceThumbnailMaxPixelSize : @(maxPixelSize),
+        (id) kCGImagePropertyOrientation: @(rotationAngle)
+    };
+    CGImageRef thumbnail = CGImageSourceCreateThumbnailAtIndex(imageSource, 0, options);
+    CFRelease(imageSource);
+    return thumbnail;
 }
 
 - (CIImage * ) fixFrontCameraMirror: (CIImage * ) capturedImage forCamera:(AVCaptureDevicePosition)camera {
@@ -723,22 +674,22 @@
     }
 }
 
-- (CGImageRef) rotateImage:(CIImage * ) finalCImage withDegrees:(double) additionalDegrees {
-    CGImageRef finalImage = [self.cameraRenderController.ciContext createCGImage:finalCImage fromRect:finalCImage.extent];
-    UIImage *resultImage = [UIImage imageWithCGImage:finalImage];
-
-    // rotate the image, such that it lines up with the screen.
-    double radians = [self radiansFromUIImageOrientation:resultImage.imageOrientation];
-
-    //
-    double degreesToRadians = [self evenAngleInDegreesToRadians:additionalDegrees];
-    double additionOfAngles = [self addEvenAnglesInRadians:degreesToRadians to:radians];
-
-    CGImageRef resultFinalImage = [self CGImageRotated:finalImage withRadians:additionOfAngles];
-
-    CGImageRelease(finalImage); // release CGImageRef to remove memory leaks
-    return resultFinalImage;
-}
+//- (CGImageRef) rotateImage:(CIImage * ) finalCImage withDegrees:(double) additionalDegrees {
+//    CGImageRef finalImage = [self.cameraRenderController.ciContext createCGImage:finalCImage fromRect:finalCImage.extent];
+//    UIImage *resultImage = [UIImage imageWithCGImage:finalImage];
+//
+//    // rotate the image, such that it lines up with the screen.
+//    double radians = [self radiansFromUIImageOrientation:resultImage.imageOrientation];
+//
+//    //
+//    double degreesToRadians = [self evenAngleInDegreesToRadians:additionalDegrees];
+//    double additionOfAngles = [self addEvenAnglesInRadians:degreesToRadians to:radians];
+//
+//    CGImageRef resultFinalImage = [self CGImageRotated:finalImage withRadians:additionOfAngles];
+//
+//    CGImageRelease(finalImage); // release CGImageRef to remove memory leaks
+//    return resultFinalImage;
+//}
 
 /**
  Input must be one of 0.0, 90, 180, 270, 360, -90, -180, -270
@@ -812,6 +763,8 @@
     }
 }
 
+
+
 - (void) invokeTakePicture:(CGFloat) width
                 withHeight:(CGFloat) height
                withQuality:(CGFloat) quality
@@ -819,138 +772,137 @@
              rotateDegrees:(double) rotation
             withCallbackId:(NSString *) callbackId {
     NSString * thumbnailFileName = [@"thumb-" stringByAppendingString:fileName];
-    
+
     CFAbsoluteTime start = CFAbsoluteTimeGetCurrent();
-    
+
     AVCaptureConnection *connection = [self.sessionManager.stillImageOutput connectionWithMediaType:AVMediaTypeVideo];
     [self.sessionManager.stillImageOutput captureStillImageAsynchronouslyFromConnection:(connection) completionHandler:^(CMSampleBufferRef sampleBuffer, NSError *error) {
-        
+
         if (error) {
             CDVPluginResult *pluginResult = [CDVPluginResult resultWithStatus:CDVCommandStatus_ERROR messageAsString:@"Error after calling captureStillImage."];
             [self.commandDelegate sendPluginResult:pluginResult callbackId: callbackId];
             NSLog(@"%@", error);
             return;
         } else {
-            
-            CFAbsoluteTime dataCaptured = CFAbsoluteTimeGetCurrent();
-            
-            NSData *imageData = [AVCaptureStillImageOutput jpegStillImageNSDataRepresentation:sampleBuffer];
-            UIImage *capturedImage  = [[UIImage alloc] initWithData:imageData];
-            
-            CGFloat heightInPoints = capturedImage.size.height;
-            CGFloat heightInPixels = heightInPoints * capturedImage.scale;
-            
-            CGFloat widthInPoints = capturedImage.size.width;
-            CGFloat widthInPixels = widthInPoints * capturedImage.scale;
-            
-            CGFloat imageAspectRatio = widthInPixels / heightInPixels;
-            CGFloat requestedAspectRatio = width / height;
-            
-            // we need to switch width and height if aspect ratios do not match
-            CGFloat useWidth;
-            CGFloat useHeight;
-            if((imageAspectRatio < 1 && requestedAspectRatio < 1) ||
-               (imageAspectRatio > 1 && requestedAspectRatio > 1)) {
-                // aspect ratios match
-                useHeight = height;
-                useWidth = width;
-            } else {
-                // aspect ratios are switched around.
-                useHeight = width;
-                useWidth = height;
-            }
-            
-            CIImage *capturedCImage = [self resizeImage:capturedImage toWidth:useWidth toHeight:useHeight];
-            
-            CIImage *imageToFilter = [self fixFrontCameraMirror:capturedCImage forCamera:self.sessionManager.defaultCamera];
-            CIImage *finalCImage = [self filterImage:imageToFilter];
-            CGImageRef resultFinalImage = [self rotateImage:finalCImage withDegrees: rotation];
-            
-            CIImage *capturedCImageThumbnail = [self resizeImage:capturedCImage fromWidth:useWidth fromHeight:useHeight toWidth:200 toHeight:200];
-            CIImage *imageToFilterThumbnail = [self fixFrontCameraMirror:capturedCImageThumbnail forCamera:self.sessionManager.defaultCamera];
-            CIImage *finalCImageThumbnail = [self filterImage:imageToFilterThumbnail];
-            CGImageRef resultFinalImageThumbnail = [self rotateImage:finalCImageThumbnail withDegrees: rotation];
-            
             NSArray *paths = NSSearchPathForDirectoriesInDomains(NSLibraryDirectory, NSUserDomainMask, YES);
             NSString* rootPath = paths[0];
             NSString* path = [rootPath stringByAppendingPathComponent:@"NoCloud"];
-            
             NSString* fullPath = [path stringByAppendingFormat: @"/%@", fileName];
             NSString * thumbPath = [path stringByAppendingFormat: @"/%@", thumbnailFileName];
-            NSLog(@"%@", path);
-            NSLog(@"%@", thumbPath);
-            
-            CFAbsoluteTime imagesRotated = CFAbsoluteTimeGetCurrent();
-            
+
+            CFAbsoluteTime dataCaptured = CFAbsoluteTimeGetCurrent();
+
+            NSData *imageData = [AVCaptureStillImageOutput jpegStillImageNSDataRepresentation:sampleBuffer];
+            CFDataRef imgDataRef = (CFDataRef) CFBridgingRetain(imageData);
+            int orientation = [self getRotationIndex:rotation];
+
+            // resize, rotate and write image to disk
+            CGImageRef capturedImageRef = [self resizeAndRotateCGImageRef:imgDataRef maxPixelSize:1600 rotationAngle:orientation];
+            CGImageWriteToFile(capturedImageRef, fullPath, quality);
+            CFRelease(capturedImageRef);
+
+            // resize, rotate and write thumbnail image to disk
+            CGImageRef thumbnailImageRef = [self resizeAndRotateCGImageRef:imgDataRef maxPixelSize:200 rotationAngle:orientation];
+            CGImageWriteToFile(thumbnailImageRef, thumbPath, 1);
+            CFRelease(thumbnailImageRef);
+
             NSError *writeError = nil;
-            
-            UIImage * finalUIImage = [[UIImage alloc] initWithCGImage:resultFinalImage];
-            NSData * jpegData = [NSData dataWithData:UIImageJPEGRepresentation(finalUIImage, quality)];
-            [jpegData writeToFile:fullPath options:NSDataWritingAtomic error:&writeError];
-            CGImageRelease(resultFinalImage); // release CGImageRef to remove memory leaks
-            
-            UIImage * finalUIImageThumbnail = [[UIImage alloc] initWithCGImage:resultFinalImageThumbnail];
-            NSData * jpegDataThumbnail = [NSData dataWithData:UIImageJPEGRepresentation(finalUIImageThumbnail, quality)];
-            [jpegDataThumbnail writeToFile:thumbPath options:NSDataWritingAtomic error:&writeError];
-            CGImageRelease(resultFinalImageThumbnail); // release CGImageRef to remove memory leaks
-            
+            CFRelease(imgDataRef);
+
             CFAbsoluteTime imagesWrittenToDisk = CFAbsoluteTimeGetCurrent();
-            
+
             NSMutableArray *params = [[NSMutableArray alloc] init];
             [params addObject:fileName];
             [params addObject:thumbnailFileName];
             [params addObject:@(start)];
             [params addObject:@(dataCaptured)];
-            [params addObject:@(imagesRotated)];
             [params addObject:@(imagesWrittenToDisk)];
 
-            [params addObject:@(widthInPoints)];
-            [params addObject:@(heightInPoints)];
-            [params addObject:@(widthInPixels)];
-            [params addObject:@(heightInPixels)];
-            
             if(writeError){
                 CDVPluginResult *pluginResult = [CDVPluginResult resultWithStatus:CDVCommandStatus_ERROR messageAsString:@"Error while writing files."];
                 [self.commandDelegate sendPluginResult:pluginResult callbackId: callbackId];
                 NSLog(@"%@", error);
             } else {
                 CDVPluginResult *pluginResult = [CDVPluginResult resultWithStatus:CDVCommandStatus_OK messageAsArray:params];
-                // [pluginResult setKeepCallbackAsBool:true];
                 [self.commandDelegate sendPluginResult:pluginResult callbackId: callbackId];
             }
         }
     }];
 }
 
+void CGImageWriteToFile(CGImageRef image, NSString *path, CGFloat quality) {
+    CFURLRef url = (__bridge CFURLRef) [NSURL fileURLWithPath:path];
+
+    CGImageDestinationRef destination = CGImageDestinationCreateWithURL(url, kUTTypeJPEG, 1, nil);
+
+    CFDictionaryRef options = (__bridge CFDictionaryRef) @{
+           (id) kCGImageDestinationLossyCompressionQuality: @(quality)
+    };
+    CGImageDestinationAddImage(destination, image, options);
+
+    if (!CGImageDestinationFinalize(destination)) {
+        NSLog(@"Failed to write image to %@", path);
+    }
+
+    CFRelease(destination);
+}
+
+- (int) getRotationIndex:(double) angle {
+    if(angle == 0.0) {
+        return kCGImagePropertyOrientationUp;
+    } else if (angle == 90.0) {
+        return kCGImagePropertyOrientationLeft;
+    } else if (angle == 180.0) {
+        return kCGImagePropertyOrientationDown;
+    } else if (angle == 270.0) {
+        return kCGImagePropertyOrientationRight;
+    } else {
+        return kCGImagePropertyOrientationUp;
+    }
+}
+
 - (void) invokeTakePicture:(CGFloat) width withHeight:(CGFloat) height withQuality:(CGFloat) quality{
-    AVCaptureConnection *connection = [self.sessionManager.stillImageOutput connectionWithMediaType:AVMediaTypeVideo];
-    [self.sessionManager.stillImageOutput captureStillImageAsynchronouslyFromConnection:(connection) completionHandler:^(CMSampleBufferRef sampleBuffer, NSError *error) {
+    //    AVCaptureConnection *connection = [self.sessionManager.stillImageOutput connectionWithMediaType:AVMediaTypeVideo];
+    //    [self.sessionManager.stillImageOutput captureStillImageAsynchronouslyFromConnection:(connection) completionHandler:^(CMSampleBufferRef sampleBuffer, NSError *error) {
+    //
+    //      NSLog(@"Done creating still image");
+    //
+    //      if (error) {
+    //        NSLog(@"%@", error);
+    //      } else {
+    //
+    //        NSData *imageData = [AVCaptureStillImageOutput jpegStillImageNSDataRepresentation:sampleBuffer];
+    //        UIImage *capturedImage  = [[UIImage alloc] initWithData:imageData];
+    //        CIImage *capturedCImage = [self resizeImage:capturedImage toWidth:width toHeight:height];
+    //
+    //        CIImage *imageToFilter = [self fixFrontCameraMirror:capturedCImage forCamera:self.sessionManager.defaultCamera];
+    //        CIImage *finalCImage = [self filterImage:imageToFilter];
+    //
+    //        // TODO. This does not work at all any more.
+    //        // There is no CI context anymore, so it can not do any rotations.
+    //        // Should be implemented with IOFramework anyway.
+    //        CGImageRef resultFinalImage = [self rotateImage:finalCImage withDegrees:0.0];
+    //
+    //        NSString *base64Image = [self getBase64Image:resultFinalImage withQuality:quality];
+    //
+    //         CGImageRelease(resultFinalImage); // release CGImageRef to remove memory leaks
+    //
+    //        NSMutableArray *params = [[NSMutableArray alloc] init];
+    //        [params addObject:base64Image];
+    //
+    //        CDVPluginResult *pluginResult = [CDVPluginResult resultWithStatus:CDVCommandStatus_OK messageAsArray:params];
+    //        // [pluginResult setKeepCallbackAsBool:true];
+    //        [self.commandDelegate sendPluginResult:pluginResult callbackId:self.onPictureTakenHandlerId];
+    //      }
+    //    }];
 
-      NSLog(@"Done creating still image");
 
-      if (error) {
-        NSLog(@"%@", error);
-      } else {
-        NSData *imageData = [AVCaptureStillImageOutput jpegStillImageNSDataRepresentation:sampleBuffer];
-        UIImage *capturedImage  = [[UIImage alloc] initWithData:imageData];
-        CIImage *capturedCImage = [self resizeImage:capturedImage toWidth:width toHeight:height];
+    // We do not want to use this function at all, as we do not want to deal with base64 data in javascript if
+    // at all possible.
+    NSMutableArray *params = [[NSMutableArray alloc] init];
+    [params addObject: @""];
 
-        CIImage *imageToFilter = [self fixFrontCameraMirror:capturedCImage forCamera:self.sessionManager.defaultCamera];
-        CIImage *finalCImage = [self filterImage:imageToFilter];
-        
-        CGImageRef resultFinalImage = [self rotateImage:finalCImage withDegrees:0.0];
-
-        NSString *base64Image = [self getBase64Image:resultFinalImage withQuality:quality];
-
-        CGImageRelease(resultFinalImage); // release CGImageRef to remove memory leaks
-
-        NSMutableArray *params = [[NSMutableArray alloc] init];
-        [params addObject:base64Image];
-
-        CDVPluginResult *pluginResult = [CDVPluginResult resultWithStatus:CDVCommandStatus_OK messageAsArray:params];
-        // [pluginResult setKeepCallbackAsBool:true];
-        [self.commandDelegate sendPluginResult:pluginResult callbackId:self.onPictureTakenHandlerId];
-      }
-    }];
+    CDVPluginResult *pluginResult = [CDVPluginResult resultWithStatus:CDVCommandStatus_OK messageAsArray:params];
+    [self.commandDelegate sendPluginResult:pluginResult callbackId:self.onPictureTakenHandlerId];
 }
 @end
