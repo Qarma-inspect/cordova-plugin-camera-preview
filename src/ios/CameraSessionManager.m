@@ -271,6 +271,8 @@
     };
   } else if ([focusMode isEqual:@"continuous"]) {
     if ([videoDevice isFocusModeSupported:2]) {
+      // focus at the center point by default
+      videoDevice.focusPointOfInterest = CGPointMake(0.5, 0.5);
       videoDevice.focusMode = 2;
     } else {
       errMsg = @"Focus mode not supported";
@@ -401,7 +403,7 @@
     [exposureModes addObject:@"auto"];
   };
   if ([videoDevice isExposureModeSupported:2]) {
-    [exposureModes addObject:@"cotinuous"];
+    [exposureModes addObject:@"continuous"];
   };
   if ([videoDevice isExposureModeSupported:3]) {
     [exposureModes addObject:@"custom"];
