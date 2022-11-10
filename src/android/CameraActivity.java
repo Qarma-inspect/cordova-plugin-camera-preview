@@ -10,6 +10,7 @@ import android.graphics.Bitmap;
 import android.graphics.Bitmap.CompressFormat;
 import android.media.AudioManager;
 import android.os.AsyncTask;
+import android.os.Build;
 import android.util.Base64;
 import android.graphics.BitmapFactory;
 import android.graphics.Canvas;
@@ -39,7 +40,6 @@ import android.hardware.Camera;
 import android.hardware.Camera.PictureCallback;
 import android.hardware.Camera.ShutterCallback;
 import android.hardware.Camera.CameraInfo;
-
 import androidx.exifinterface.media.ExifInterface;
 
 import org.apache.cordova.LOG;
@@ -427,6 +427,13 @@ public class CameraActivity extends Fragment {
       return 0;
   }
 
+  private static int exifToHorizontalDegrees(int exifOrientation) {
+      if (exifOrientation == ExifInterface.ORIENTATION_ROTATE_90) { return 90; }
+      else if (exifOrientation == ExifInterface.ORIENTATION_ROTATE_180) {  return 0; }
+      else if (exifOrientation == ExifInterface.ORIENTATION_ROTATE_270) {  return 270; }
+      return 180;
+  }
+
   ShutterCallback shutterCallback = new ShutterCallback() {
     public void onShutter() {
       // do nothing, availabilty of this callback causes default system shutter sound to work
@@ -610,53 +617,10 @@ public class CameraActivity extends Fragment {
         new AsyncTask<Void, Void, Void>() {
           @Override
           protected Void doInBackground(Void... voids) {
-            try {
-              Matrix matrix = new Matrix();
-
-              ExifInterface exifInterface = new ExifInterface(new ByteArrayInputStream(data));
-              int rotation = exifInterface.getAttributeInt(ExifInterface.TAG_ORIENTATION, ExifInterface.ORIENTATION_NORMAL);
-              int rotationInDegrees = exifToDegrees(rotation);
-
-              if (rotation != 0f) {
-                matrix.preRotate(rotationInDegrees);
-              }
-
-              FileOutputStream outputStream = null;
-              outputStream = context.openFileOutput(targetFileName, Context.MODE_PRIVATE);
-
-              File outputFile = context.getFileStreamPath(targetFileName);
-              Bitmap outputData = BitmapFactory.decodeByteArray(data, 0, data.length);
-              outputData = applyMatrix(outputData, matrix);
-              int imageWidth = outputData.getWidth();
-              int imageHeight= outputData.getHeight();
-              if(imageWidth * imageHeight > 1600 * 1200 && Math.max(imageWidth, imageHeight) / Math.min(imageWidth, imageHeight) == 4/3) {
-                int newWidth = imageWidth > imageHeight ? 1600 : 1200;
-                int newHeight = imageWidth > imageHeight ? 1200 : 1600;
-                Bitmap scaledDownImage = Bitmap.createScaledBitmap(outputData, newWidth, newHeight, true);
-                scaledDownImage.compress(CompressFormat.JPEG, quality, outputStream);
-              } else {
-                outputData.compress(CompressFormat.JPEG, quality, outputStream);
-              }
-
-              Rect scaledRect = RectMathUtil.contain(outputData.getWidth(), outputData.getHeight(), 200, 200);
-              // turn image to correct aspect ratio.
-              Bitmap partOfImage = Bitmap.createBitmap(outputData, scaledRect.left, scaledRect.top, scaledRect.width(), scaledRect.height());
-              // scale down without stretching.
-              Bitmap scaledDown = Bitmap.createScaledBitmap(partOfImage, 200, 200, true);
-
-              FileOutputStream thumbOutputStream = context.openFileOutput(targetThumbnailFilename, Context.MODE_PRIVATE);
-              File thumbOutputFile = context.getFileStreamPath(targetThumbnailFilename);
-
-              scaledDown.compress(CompressFormat.JPEG, Math.max(quality - 20, 20), thumbOutputStream);
-
-              eventListener.onPictureTakenToFile(outputFile.getName(), thumbOutputFile.getName());
-            } catch (IOException e) {
-              Log.d(TAG, "CameraPreview IOException");
-              eventListener.onPictureTakenError("IO Error when extracting exif");
-            }
-            catch (Exception e) {
-              e.printStackTrace();
-              eventListener.onPictureTakenError("Failed to write files to disk");
+            if(Build.MODEL.equals("SM-A135F")) {
+                processImageSMA135F(data, quality, targetFileName, targetThumbnailFilename, getActivity().getApplicationContext());
+            } else {
+                processImage(data, quality, targetFileName, targetThumbnailFilename, getActivity().getApplicationContext());
             }
             return null;
           }
@@ -708,6 +672,114 @@ public class CameraActivity extends Fragment {
     }.execute();
 
     canTakePicture = true;
+  }
+
+  private void processImage(byte[] data, int quality, String targetFileName, String targetThumbnailFilename, Context context) {
+      try {
+          Matrix matrix = new Matrix();
+
+          ExifInterface exifInterface = new ExifInterface(new ByteArrayInputStream(data));
+          int rotation = exifInterface.getAttributeInt(ExifInterface.TAG_ORIENTATION, ExifInterface.ORIENTATION_NORMAL);
+          int rotationInDegrees = exifToDegrees(rotation);
+
+          if (rotation != 0f) {
+              matrix.preRotate(rotationInDegrees);
+          }
+
+          FileOutputStream outputStream = null;
+          outputStream = context.openFileOutput(targetFileName, Context.MODE_PRIVATE);
+
+          File outputFile = context.getFileStreamPath(targetFileName);
+          Bitmap outputData = BitmapFactory.decodeByteArray(data, 0, data.length);
+          outputData = applyMatrix(outputData, matrix);
+          int imageWidth = outputData.getWidth();
+          int imageHeight= outputData.getHeight();
+          if(imageWidth * imageHeight > 1600 * 1200 && Math.max(imageWidth, imageHeight) / Math.min(imageWidth, imageHeight) == 4/3) {
+              int newWidth = imageWidth > imageHeight ? 1600 : 1200;
+              int newHeight = imageWidth > imageHeight ? 1200 : 1600;
+              Bitmap scaledDownImage = Bitmap.createScaledBitmap(outputData, newWidth, newHeight, true);
+              scaledDownImage.compress(CompressFormat.JPEG, quality, outputStream);
+          } else {
+              outputData.compress(CompressFormat.JPEG, quality, outputStream);
+          }
+
+          Rect scaledRect = RectMathUtil.contain(outputData.getWidth(), outputData.getHeight(), 200, 200);
+          // turn image to correct aspect ratio.
+          Bitmap partOfImage = Bitmap.createBitmap(outputData, scaledRect.left, scaledRect.top, scaledRect.width(), scaledRect.height());
+          // scale down without stretching.
+          Bitmap scaledDown = Bitmap.createScaledBitmap(partOfImage, 200, 200, true);
+
+          FileOutputStream thumbOutputStream = context.openFileOutput(targetThumbnailFilename, Context.MODE_PRIVATE);
+          File thumbOutputFile = context.getFileStreamPath(targetThumbnailFilename);
+
+          scaledDown.compress(CompressFormat.JPEG, Math.max(quality - 20, 20), thumbOutputStream);
+
+          eventListener.onPictureTakenToFile(outputFile.getName(), thumbOutputFile.getName());
+      } catch (IOException e) {
+          Log.d(TAG, "CameraPreview IOException");
+          eventListener.onPictureTakenError("IO Error when extracting exif");
+      }
+      catch (Exception e) {
+          e.printStackTrace();
+          eventListener.onPictureTakenError("Failed to write files to disk");
+      }
+  }
+
+  private void processImageSMA135F(byte[] data, int quality, String targetFileName, String targetThumbnailFilename, Context context) {
+      try {
+          Bitmap outputData = BitmapFactory.decodeByteArray(data, 0, data.length);
+
+          Matrix matrix = new Matrix();
+          ExifInterface exifInterface = new ExifInterface(new ByteArrayInputStream(data));
+          int rotation = exifInterface.getAttributeInt(ExifInterface.TAG_ORIENTATION, ExifInterface.ORIENTATION_NORMAL);
+          boolean isHorizontal = rotation == ExifInterface.ORIENTATION_NORMAL || rotation == ExifInterface.ORIENTATION_ROTATE_180;
+          int newWidth = 1600;
+          int newHeight = 1200;
+          Bitmap scaledDownImage = Bitmap.createScaledBitmap(outputData, newWidth, newHeight, true);
+
+          // remove duplicated part
+          int[] pixels = new int[(newWidth - 940) * newHeight];
+          scaledDownImage.getPixels(pixels, 0, newWidth - 940, 940, 0, newWidth - 940, newHeight);
+          scaledDownImage.setPixels(pixels, 0, newWidth - 940, 806, 0, newWidth - 940, newHeight);
+
+          // make image vertical to remove the abundant part in the bottom
+          matrix.postRotate(90);
+          scaledDownImage = applyMatrix(scaledDownImage, matrix);
+          scaledDownImage.reconfigure(scaledDownImage.getWidth(), scaledDownImage.getHeight() - 135, Bitmap.Config.ARGB_8888);
+
+          // rotate back to horizontal if necessary
+          if (isHorizontal) {
+            int degree = exifToHorizontalDegrees(rotation);
+            matrix.preRotate(degree);
+            scaledDownImage = applyMatrix(scaledDownImage, matrix);
+          }
+          streamBitmapToFile(scaledDownImage, context, quality, targetFileName);
+
+          // thumbnail image
+          Bitmap thumbnail = Bitmap.createScaledBitmap(scaledDownImage, 200, 200, true);
+          streamBitmapToFile(thumbnail, context, Math.max(quality - 20, 20), targetThumbnailFilename);
+          eventListener.onPictureTakenToFile(targetFileName, targetThumbnailFilename);
+      } catch (IOException e) {
+          Log.d(TAG, "CameraPreview IOException");
+          eventListener.onPictureTakenError("IO Error when extracting exif");
+      }
+      catch (Exception e) {
+          e.printStackTrace();
+          eventListener.onPictureTakenError("Failed to write files to disk");
+      }
+  }
+
+  private void streamBitmapToFile(Bitmap image, Context context, int quality, String targetFileName) {
+      try {
+          FileOutputStream outputStream = null;
+          outputStream = context.openFileOutput(targetFileName, Context.MODE_PRIVATE);
+          image.compress(CompressFormat.JPEG, quality, outputStream);
+          outputStream.close();
+      } catch (Exception e) {
+          e.printStackTrace();
+          eventListener.onPictureTakenError("Failed to write files to disk");
+      }
+
   }
 
   public void takePicture(final int width, final int height, final int quality) {
