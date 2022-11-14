@@ -740,7 +740,7 @@ public class CameraActivity extends Fragment {
           // remove duplicated part
           int[] pixels = new int[(newWidth - 940) * newHeight];
           scaledDownImage.getPixels(pixels, 0, newWidth - 940, 940, 0, newWidth - 940, newHeight);
-          scaledDownImage.setPixels(pixels, 0, newWidth - 940, 806, 0, newWidth - 940, newHeight);
+          scaledDownImage.setPixels(pixels, 0, newWidth - 940, 805, 0, newWidth - 940, newHeight);
 
           // make image vertical to remove the abundant part in the bottom
           matrix.postRotate(90);
