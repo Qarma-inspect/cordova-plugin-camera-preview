@@ -35,6 +35,8 @@ interface CameraPreviewPreviewSizeDimension {
 interface CameraPreview {
   startCamera(options?:CameraPreviewStartCameraOptions, onSuccess?:CameraPreviewSuccessHandler, onError?:CameraPreviewErrorHandler):void;
   stopCamera(onSuccess?:CameraPreviewSuccessHandler, onError?:CameraPreviewErrorHandler):void;
+  startRecordVideo(options?:any|CameraPreviewSuccessHandler, onSuccess?:CameraPreviewSuccessHandler|CameraPreviewErrorHandler, onError?:CameraPreviewErrorHandler):void;
+  stopRecordVideo(onSuccess?:CameraPreviewSuccessHandler, onError?:CameraPreviewErrorHandler):void;
   switchCamera(onSuccess?:CameraPreviewSuccessHandler, onError?:CameraPreviewErrorHandler):void;
   hide(onSuccess?:CameraPreviewSuccessHandler, onError?:CameraPreviewErrorHandler):void;
   show(onSuccess?:CameraPreviewSuccessHandler, onError?:CameraPreviewErrorHandler):void;
