@@ -811,9 +811,14 @@ public class CameraActivity extends Fragment {
             break;
           }
       }
-        cameraParams.setFlashMode(Camera.Parameters.FLASH_MODE_TORCH);
-        mCamera.setParameters(cameraParams);
-
+      List<String> flashModes = cameraParams.getSupportedFlashModes();
+      for(int i = 0; i < flashModes.size(); i++) {
+          String mode = flashModes.get(i);
+          if(mode == Camera.Parameters.FLASH_MODE_TORCH) {
+              cameraParams.setFlashMode(Camera.Parameters.FLASH_MODE_TORCH);
+              break;
+          }
+      }
         mCamera.startPreview();
 
       mCamera.unlock();
@@ -823,11 +828,11 @@ public class CameraActivity extends Fragment {
         mRecorder.setCamera(mCamera);
 
         CamcorderProfile profile;
-        if (CamcorderProfile.hasProfile(defaultCameraId, CamcorderProfile.QUALITY_480P)) {
-          profile = CamcorderProfile.get(defaultCameraId, CamcorderProfile.QUALITY_480P);
+        if (CamcorderProfile.hasProfile(defaultCameraId, CamcorderProfile.QUALITY_720P)) {
+          profile = CamcorderProfile.get(defaultCameraId, CamcorderProfile.QUALITY_720P);
         } else {
-          if (CamcorderProfile.hasProfile(defaultCameraId, CamcorderProfile.QUALITY_HIGH)) {
-            profile = CamcorderProfile.get(defaultCameraId, CamcorderProfile.QUALITY_HIGH);
+          if (CamcorderProfile.hasProfile(defaultCameraId, CamcorderProfile.QUALITY_480P)) {
+            profile = CamcorderProfile.get(defaultCameraId, CamcorderProfile.QUALITY_480P);
           } else {
             if (CamcorderProfile.hasProfile(defaultCameraId, CamcorderProfile.QUALITY_720P)) {
               profile = CamcorderProfile.get(defaultCameraId, CamcorderProfile.QUALITY_720P);
@@ -840,14 +845,13 @@ public class CameraActivity extends Fragment {
             }
           }
         }
-
-        mRecorder.setVideoEncodingBitRate(2500000);
         mRecorder.setAudioSource(MediaRecorder.AudioSource.VOICE_RECOGNITION);
         mRecorder.setVideoSource(MediaRecorder.VideoSource.CAMERA);
         mRecorder.setProfile(profile);
         mRecorder.setOutputFile(filePath);
         mRecorder.setMaxDuration(12000);
         mRecorder.setOrientationHint(mOrientationHint);
+        mRecorder.setVideoEncodingBitRate(2500000);
         mRecorder.setOnInfoListener(new MediaRecorder.OnInfoListener() {
             @Override
             public void onInfo(MediaRecorder mediaRecorder, int i, int i1) {
@@ -859,8 +863,9 @@ public class CameraActivity extends Fragment {
                 }
             }
         });
-        mRecorder.setVideoSize(videoWidth, videoHeight);
-//        mRecorder.set
+        if(videoWidth != 0 && videoHeight != 0) {
+            mRecorder.setVideoSize(videoWidth, videoHeight);
+        }
         mRecorder.prepare();
         Log.d(TAG, "Starting recording");
         mRecorder.start();
