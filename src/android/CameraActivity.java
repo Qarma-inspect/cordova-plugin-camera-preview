@@ -345,6 +345,18 @@ public class CameraActivity extends Fragment {
   public void onPause() {
     super.onPause();
 
+    if(mRecorder != null) {
+      try {
+        mRecorder.stop();
+        mRecorder.reset();
+        mRecorder.release();
+        mRecorder = null;
+      }
+      catch (Exception e) {
+        Log.d(TAG, "failed to stop media recorder");
+      }
+    }
+
     // Because the Camera object is a shared resource, it's very important to release it when the activity is paused.
     if (mCamera != null) {
 //      setDefaultCameraId();
