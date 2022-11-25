@@ -824,15 +824,16 @@ public class CameraActivity extends Fragment {
           }
       }
       List<String> flashModes = cameraParams.getSupportedFlashModes();
-      for(int i = 0; i < flashModes.size(); i++) {
+      if(flashModes != null) {
+        for(int i = 0; i < flashModes.size(); i++) {
           String mode = flashModes.get(i);
           if(mode == Camera.Parameters.FLASH_MODE_TORCH) {
               cameraParams.setFlashMode(Camera.Parameters.FLASH_MODE_TORCH);
+              mCamera.startPreview();
               break;
           }
+        }
       }
-        mCamera.startPreview();
-
       mCamera.unlock();
       mRecorder = new MediaRecorder();
 
