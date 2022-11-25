@@ -868,9 +868,10 @@ public class CameraActivity extends Fragment {
             @Override
             public void onInfo(MediaRecorder mediaRecorder, int i, int i1) {
                 if(i == MediaRecorder.MEDIA_RECORDER_INFO_MAX_DURATION_REACHED) {
-                    mediaRecorder.stop();
-                    mediaRecorder.reset();
-                    mediaRecorder.release();
+                    mRecorder.stop();
+                    mRecorder.reset();
+                    mRecorder.release();
+                    mRecorder = null;
                     webview.sendJavascript("cordova.fireDocumentEvent('videoRecorderUpdate', {filePath: '"+ filePath + "' }, true);");
                 }
             }
