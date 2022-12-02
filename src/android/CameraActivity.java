@@ -617,7 +617,7 @@ public class CameraActivity extends Fragment {
         new AsyncTask<Void, Void, Void>() {
           @Override
           protected Void doInBackground(Void... voids) {
-            if(Build.MODEL.equals("SM-A135F")) {
+            if(Build.MODEL.equals("SM-A135F") || Build.MODEL.equals("SM-A047F")) {
                 processImageSMA135F(data, quality, targetFileName, targetThumbnailFilename, getActivity().getApplicationContext());
             } else {
                 processImage(data, quality, targetFileName, targetThumbnailFilename, getActivity().getApplicationContext());
