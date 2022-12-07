@@ -21,9 +21,10 @@ import org.json.JSONException;
 
 import java.util.List;
 import java.util.Arrays;
+import java.io.File;
 
 public class CameraPreview extends CordovaPlugin implements CameraActivity.CameraPreviewListener {
-
+  private static final String VIDEO_FILE_EXTENSION = ".mp4";
   private static final String TAG = "CameraPreview";
 
   private static final String COLOR_EFFECT_ACTION = "setColorEffect";
@@ -58,17 +59,26 @@ public class CameraPreview extends CordovaPlugin implements CameraActivity.Camer
   private static final String SET_WHITE_BALANCE_MODE_ACTION = "setWhiteBalanceMode";
   private static final String GET_CAMERA_INFO_ROTATION = "getCameraInfoRotation";
   private static final String SET_CAMERA_PARAMETER_RESOLUTION = "setCameraParameterResolution";
+  private static final String START_RECORD_VIDEO_ACTION = "startRecordVideo";
+  private static final String STOP_RECORD_VIDEO_ACTION = "stopRecordVideo";
 
   private static final int CAM_REQ_CODE = 0;
+  private static final int VID_REQ_CODE = 1;
 
   private static final String [] permissions = {
     Manifest.permission.CAMERA
+  };
+  private static final String [] videoPermissions = {
+    Manifest.permission.RECORD_AUDIO,
+    Manifest.permission.WRITE_EXTERNAL_STORAGE
   };
 
   private CameraActivity fragment;
   private CallbackContext takePictureCallbackContext;
   private CallbackContext setFocusCallbackContext;
   private CallbackContext startCameraCallbackContext;
+  private CallbackContext startRecordVideoCallbackContext;
+  private CallbackContext stopRecordVideoCallbackContext;
 
   private CallbackContext execCallback;
   private JSONArray execArgs;
@@ -76,6 +86,7 @@ public class CameraPreview extends CordovaPlugin implements CameraActivity.Camer
   private ViewParent webViewParent;
 
   private int containerViewId = 1;
+  private String VIDEO_FILE_PATH = "";
   public CameraPreview(){
     super();
     Log.d(TAG, "Constructing");
@@ -161,6 +172,17 @@ public class CameraPreview extends CordovaPlugin implements CameraActivity.Camer
       return getCameraInfoRotation(args.getString(0), callbackContext);
     } else if (SET_CAMERA_PARAMETER_RESOLUTION.equals(action)){
       return setCameraParameterResolution(args.getInt(0), args.getInt(1), callbackContext);
+    } else if (START_RECORD_VIDEO_ACTION.equals(action)) {
+        if ( cordova.hasPermission(videoPermissions[0]) && cordova.hasPermission(videoPermissions[1])) {
+            return startRecordVideo(args.getString(0), args.getString(1), args.getInt(2), args.getInt(3), args.getInt(4), args.getBoolean(5), callbackContext);
+        } else {
+            this.execCallback = callbackContext;
+            this.execArgs = args;
+            cordova.requestPermissions(this, VID_REQ_CODE, videoPermissions);
+            return true;
+        }
+    } else if (STOP_RECORD_VIDEO_ACTION.equals(action)) {
+        return stopRecordVideo(callbackContext);
     }
     return false;
   }
@@ -175,6 +197,8 @@ public class CameraPreview extends CordovaPlugin implements CameraActivity.Camer
     }
     if (requestCode == CAM_REQ_CODE) {
       startCamera(this.execArgs.getInt(0), this.execArgs.getInt(1), this.execArgs.getInt(2), this.execArgs.getInt(3), this.execArgs.getString(4), this.execArgs.getBoolean(5), this.execArgs.getBoolean(6), this.execArgs.getBoolean(7), this.execArgs.getString(8), this.execArgs.getBoolean(9), this.execCallback);
+    } else if(requestCode == VID_REQ_CODE) {
+      startRecordVideo(this.execArgs.getString(0), this.execArgs.getString(1), this.execArgs.getInt(2), this.execArgs.getInt(3), this.execArgs.getInt(4), this.execArgs.getBoolean(5),  this.execCallback);
     }
   }
 
@@ -363,6 +387,76 @@ public class CameraPreview extends CordovaPlugin implements CameraActivity.Camer
     fragment.takePictureToFile(width, height, quality, targetFileName, orientation);
     return true;
   }
+    private boolean startRecordVideo(final String fileName, final String camera, final int width, final int height, final int quality, final boolean withFlash, CallbackContext callbackContext) {
+      if(this.hasView(callbackContext) == false){
+          return true;
+      }
+      startRecordVideoCallbackContext = callbackContext;
+      String filePath = cordova.getActivity().getFileStreamPath(fileName).toString() + VIDEO_FILE_EXTENSION;
+      cordova.getThreadPool().execute(new Runnable() {
+          @Override
+          public void run() {
+              fragment.startRecord(webView, filePath, camera, width, height, quality, withFlash);
+          }
+      });
+
+      return true;
+    }
+
+    private String getFilePath(String filename) {
+      String fileName = filename;
+
+      int i = 1;
+      String videoPath = cordova.getActivity().getFileStreamPath(fileName).toString();
+      while (new File(videoPath + VIDEO_FILE_EXTENSION).exists()) {
+        // Add number suffix if file exists
+        fileName = filename + '_' + i;
+        videoPath = cordova.getActivity().getFileStreamPath(fileName).toString();
+        i++;
+      }
+
+
+      return videoPath + VIDEO_FILE_EXTENSION;
+    }
+
+    public void onStartRecordVideo() {
+      Log.d(TAG, "onStartRecordVideo started");
+      PluginResult pluginResult = new PluginResult(PluginResult.Status.OK);
+      pluginResult.setKeepCallback(true);
+      startRecordVideoCallbackContext.sendPluginResult(pluginResult);
+    }
+
+    public void onStartRecordVideoError(String message) {
+      Log.d(TAG, "CameraPreview onStartRecordVideo");
+      startRecordVideoCallbackContext.error(message);
+    }
+
+    private boolean stopRecordVideo(CallbackContext callbackContext) {
+      if(this.hasView(callbackContext) == false){
+          return true;
+      }
+      stopRecordVideoCallbackContext = callbackContext;
+      cordova.getThreadPool().execute(new Runnable() {
+        @Override
+        public void run() {
+            fragment.stopRecord();
+        }
+      });
+
+      return true;
+    }
+
+    public void onStopRecordVideo(String file) {
+        Log.d(TAG, "onStopRecordVideo success");
+        PluginResult result = new PluginResult(PluginResult.Status.OK, file);
+        result.setKeepCallback(true);
+        stopRecordVideoCallbackContext.sendPluginResult(result);
+    }
+
+    public void onStopRecordVideoError(String err) {
+        Log.d(TAG, "onStopRecordVideo error");
+        stopRecordVideoCallbackContext.error(err);
+    }
 
   public void onPictureTaken(String originalPicture) {
     Log.d(TAG, "returning picture");

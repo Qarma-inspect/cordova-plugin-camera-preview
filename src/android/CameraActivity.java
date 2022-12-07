@@ -43,6 +43,7 @@ import android.hardware.Camera.CameraInfo;
 import androidx.exifinterface.media.ExifInterface;
 
 import org.apache.cordova.LOG;
+import org.apache.cordova.CordovaWebView;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
@@ -59,6 +60,8 @@ import java.util.List;
 import java.util.Arrays;
 import java.util.Locale;
 import java.util.concurrent.Executors;
+import android.media.MediaRecorder;
+import android.media.CamcorderProfile;
 
 public class CameraActivity extends Fragment {
 
@@ -76,6 +79,10 @@ public class CameraActivity extends Fragment {
     void onCameraStarted();
 
     void onCameraStartedError(String message);
+      void onStartRecordVideo();
+      void onStartRecordVideoError(String message);
+      void onStopRecordVideo(String file);
+      void onStopRecordVideoError(String error);
   }
 
   private CameraPreviewListener eventListener;
@@ -104,6 +111,12 @@ public class CameraActivity extends Fragment {
   public int height;
   public int x;
   public int y;
+  private enum RecordingState {INITIALIZING, STARTED, STOPPED};
+  private RecordingState mRecordingState = RecordingState.INITIALIZING;
+  private MediaRecorder mRecorder = null;
+  private String recordFilePath;
+  private CordovaWebView cordovaWebView;
+
 
   public void setEventListener(CameraPreviewListener listener) {
     eventListener = listener;
@@ -331,6 +344,18 @@ public class CameraActivity extends Fragment {
   @Override
   public void onPause() {
     super.onPause();
+
+    if(mRecorder != null) {
+      try {
+        mRecorder.stop();
+        mRecorder.reset();
+        mRecorder.release();
+        mRecorder = null;
+      }
+      catch (Exception e) {
+        Log.d(TAG, "failed to stop media recorder");
+      }
+    }
 
     // Because the Camera object is a shared resource, it's very important to release it when the activity is paused.
     if (mCamera != null) {
@@ -767,6 +792,176 @@ public class CameraActivity extends Fragment {
           e.printStackTrace();
           eventListener.onPictureTakenError("Failed to write files to disk");
       }
+  }
+
+  public void startRecord(CordovaWebView webview, final String filePath, final String camera, final int width, final int height, final int quality, final boolean withFlash){
+//    Log.d(TAG, "CameraPreview startRecord camera: " + camera + " width: " + width + ", height: " + height + ", quality: " + quality);
+
+    if(mCamera != null) {
+      Activity activity = getActivity();
+      muteStream(true, activity);
+      if (this.mRecordingState == RecordingState.STARTED) {
+        Log.d(TAG, "Already Recording");
+        return;
+      }
+
+      this.recordFilePath = filePath;
+      int mOrientationHint = calculateOrientationHint();
+      int videoWidth = 0;
+      int videoHeight = 0;
+      Camera.Parameters cameraParams = mCamera.getParameters();
+      List<Camera.Size> sizes = cameraParams.getSupportedVideoSizes();
+      for(int i = 0; i < sizes.size(); i++) {
+          Camera.Size tempSize = sizes.get(i);
+          if(tempSize.width == width && tempSize.height == height) {
+             videoWidth = width;
+             videoHeight = height;
+             break;
+          } else if(tempSize.width == height && tempSize.height == width) {
+            videoWidth = height;
+            videoHeight = width;
+            break;
+          }
+      }
+      List<String> flashModes = cameraParams.getSupportedFlashModes();
+      if(flashModes != null) {
+        for(int i = 0; i < flashModes.size(); i++) {
+          String mode = flashModes.get(i);
+          if(mode == Camera.Parameters.FLASH_MODE_TORCH) {
+              cameraParams.setFlashMode(Camera.Parameters.FLASH_MODE_TORCH);
+              mCamera.startPreview();
+              break;
+          }
+        }
+      }
+      mCamera.unlock();
+      mRecorder = new MediaRecorder();
+
+      try {
+        mRecorder.setCamera(mCamera);
+
+        CamcorderProfile profile;
+        if (CamcorderProfile.hasProfile(defaultCameraId, CamcorderProfile.QUALITY_720P)) {
+          profile = CamcorderProfile.get(defaultCameraId, CamcorderProfile.QUALITY_720P);
+        } else {
+          if (CamcorderProfile.hasProfile(defaultCameraId, CamcorderProfile.QUALITY_480P)) {
+            profile = CamcorderProfile.get(defaultCameraId, CamcorderProfile.QUALITY_480P);
+          } else {
+            if (CamcorderProfile.hasProfile(defaultCameraId, CamcorderProfile.QUALITY_720P)) {
+              profile = CamcorderProfile.get(defaultCameraId, CamcorderProfile.QUALITY_720P);
+            } else {
+              if (CamcorderProfile.hasProfile(defaultCameraId, CamcorderProfile.QUALITY_1080P)) {
+                profile = CamcorderProfile.get(defaultCameraId, CamcorderProfile.QUALITY_1080P);
+              } else {
+                profile = CamcorderProfile.get(defaultCameraId, CamcorderProfile.QUALITY_LOW);
+              }
+            }
+          }
+        }
+        mRecorder.setAudioSource(MediaRecorder.AudioSource.VOICE_RECOGNITION);
+        mRecorder.setVideoSource(MediaRecorder.VideoSource.CAMERA);
+        mRecorder.setProfile(profile);
+        mRecorder.setOutputFile(filePath);
+        mRecorder.setMaxDuration(12000);
+        mRecorder.setOrientationHint(mOrientationHint);
+        mRecorder.setVideoEncodingBitRate(2500000);
+        mRecorder.setOnInfoListener(new MediaRecorder.OnInfoListener() {
+            @Override
+            public void onInfo(MediaRecorder mediaRecorder, int i, int i1) {
+                if(i == MediaRecorder.MEDIA_RECORDER_INFO_MAX_DURATION_REACHED) {
+                    mRecorder.stop();
+                    mRecorder.reset();
+                    mRecorder.release();
+                    mRecorder = null;
+                    webview.sendJavascript("cordova.fireDocumentEvent('videoRecorderUpdate', {filePath: '"+ filePath + "' }, true);");
+                }
+            }
+        });
+        if(videoWidth != 0 && videoHeight != 0) {
+            mRecorder.setVideoSize(videoWidth, videoHeight);
+        }
+        mRecorder.prepare();
+        Log.d(TAG, "Starting recording");
+        mRecorder.start();
+        eventListener.onStartRecordVideo();
+      } catch (IOException e) {
+        eventListener.onStartRecordVideoError(e.getMessage());
+      } catch (NullPointerException e) {
+          eventListener.onStartRecordVideoError(e.getMessage());
+      } catch (IllegalStateException e){
+          eventListener.onStartRecordVideoError(e.getMessage());
+      }
+
+    } else {
+        eventListener.onStartRecordVideoError("Requiring RECORD_AUDIO permission to continue");
+      Log.d(TAG, "Requiring RECORD_AUDIO permission to continue");
+    }
+  }
+
+  public int calculateOrientationHint() {
+    DisplayMetrics dm = new DisplayMetrics();
+    Camera.CameraInfo info = new Camera.CameraInfo();
+    Camera.getCameraInfo(defaultCameraId, info);
+    int cameraRotationOffset = info.orientation;
+    Activity activity = getActivity();
+
+    activity.getWindowManager().getDefaultDisplay().getMetrics(dm);
+    int currentScreenRotation = activity.getWindowManager().getDefaultDisplay().getRotation();
+
+    int degrees = 0;
+    switch (currentScreenRotation) {
+      case Surface.ROTATION_0:
+        degrees = 0;
+        break;
+      case Surface.ROTATION_90:
+        degrees = 90;
+        break;
+      case Surface.ROTATION_180:
+        degrees = 180;
+        break;
+      case Surface.ROTATION_270:
+        degrees = 270;
+        break;
+    }
+
+    int orientation;
+    if (info.facing == Camera.CameraInfo.CAMERA_FACING_FRONT) {
+      orientation = (cameraRotationOffset + degrees) % 360;
+      if (degrees != 0) {
+        orientation = (360 - orientation) % 360;
+      }
+    } else {
+      orientation = (cameraRotationOffset - degrees + 360) % 360;
+    }
+    Log.w(TAG, "************orientationHint ***********= " + orientation);
+
+    return orientation;
+  }
+
+  public void stopRecord() {
+    Log.d(TAG, "stopRecord");
+    try {
+      mRecorder.stop();
+      mRecorder.reset();   // clear recorder configuration
+      mRecorder.release(); // release the recorder object
+      mRecorder = null;
+      mCamera.lock();
+      Camera.Parameters cameraParams = mCamera.getParameters();
+      cameraParams.setFlashMode(Camera.Parameters.FLASH_MODE_OFF);
+      mCamera.setParameters(cameraParams);
+      mCamera.startPreview();
+      eventListener.onStopRecordVideo(this.recordFilePath);
+    } catch (Exception e) {
+      eventListener.onStopRecordVideoError(e.getMessage());
+    }
+  }
+
+  public void muteStream(boolean mute, Activity activity) {
+    AudioManager audioManager = ((AudioManager)activity.getApplicationContext().getSystemService(Context.AUDIO_SERVICE));
+    int direction = mute ? audioManager.ADJUST_MUTE : audioManager.ADJUST_UNMUTE;
+    audioManager.setStreamMute(AudioManager.STREAM_SYSTEM, true);
+    audioManager.setStreamMute(AudioManager.STREAM_MUSIC, true);
+
   }
 
   private void streamBitmapToFile(Bitmap image, Context context, int quality, String targetFileName) {
