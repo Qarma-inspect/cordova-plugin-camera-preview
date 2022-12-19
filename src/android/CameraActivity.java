@@ -893,11 +893,12 @@ public class CameraActivity extends Fragment {
       } catch (IOException e) {
         eventListener.onStartRecordVideoError(e.getMessage());
       } catch (NullPointerException e) {
-          eventListener.onStartRecordVideoError(e.getMessage());
+        eventListener.onStartRecordVideoError(e.getMessage());
       } catch (IllegalStateException e){
-          eventListener.onStartRecordVideoError(e.getMessage());
+        eventListener.onStartRecordVideoError(e.getMessage());
+      } catch (RuntimeException e) {
+        eventListener.onStartRecordVideoError(e.getMessage());
       }
-
     } else {
         eventListener.onStartRecordVideoError("Requiring RECORD_AUDIO permission to continue");
       Log.d(TAG, "Requiring RECORD_AUDIO permission to continue");
