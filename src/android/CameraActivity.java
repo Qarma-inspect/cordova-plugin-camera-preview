@@ -642,11 +642,7 @@ public class CameraActivity extends Fragment {
         new AsyncTask<Void, Void, Void>() {
           @Override
           protected Void doInBackground(Void... voids) {
-            if(Build.MODEL.equals("SM-A135F") || Build.MODEL.equals("SM-A047F")) {
-                processImageSMA135F(data, quality, targetFileName, targetThumbnailFilename, getActivity().getApplicationContext());
-            } else {
-                processImage(data, quality, targetFileName, targetThumbnailFilename, getActivity().getApplicationContext());
-            }
+            processImage(data, quality, targetFileName, targetThumbnailFilename, getActivity().getApplicationContext());
             return null;
           }
 
@@ -719,7 +715,9 @@ public class CameraActivity extends Fragment {
           outputData = applyMatrix(outputData, matrix);
           int imageWidth = outputData.getWidth();
           int imageHeight= outputData.getHeight();
-          if(imageWidth * imageHeight > 1600 * 1200 && Math.max(imageWidth, imageHeight) / Math.min(imageWidth, imageHeight) == 4/3) {
+          double imageRatio = (double) Math.min(imageWidth, imageHeight) / Math.max(imageWidth, imageHeight);
+          final double expectedRatio = 0.75;
+          if(imageWidth * imageHeight > 1600 * 1200 && imageRatio == expectedRatio) {
               int newWidth = imageWidth > imageHeight ? 1600 : 1200;
               int newHeight = imageWidth > imageHeight ? 1200 : 1600;
               Bitmap scaledDownImage = Bitmap.createScaledBitmap(outputData, newWidth, newHeight, true);
