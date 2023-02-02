@@ -70,7 +70,7 @@ public class CameraPreview extends CordovaPlugin implements CameraActivity.Camer
   };
   private static final String [] videoPermissions = {
     Manifest.permission.RECORD_AUDIO,
-    Manifest.permission.WRITE_EXTERNAL_STORAGE
+    Manifest.permission.CAMERA
   };
 
   private CameraActivity fragment;
