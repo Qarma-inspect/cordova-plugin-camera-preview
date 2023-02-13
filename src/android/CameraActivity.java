@@ -832,7 +832,6 @@ public class CameraActivity extends Fragment {
           }
         }
       }
-      mCamera.setDisplayOrientation(mOrientationHint);
       mCamera.unlock();
       mRecorder = new MediaRecorder();
 
