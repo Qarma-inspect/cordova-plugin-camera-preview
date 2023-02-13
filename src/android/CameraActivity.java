@@ -792,7 +792,7 @@ public class CameraActivity extends Fragment {
       }
   }
 
-  public void startRecord(CordovaWebView webview, final String filePath, final String camera, final int width, final int height, final int quality, final boolean withFlash){
+  public void startRecord(CordovaWebView webview, final String filePath, final String camera, final String rotation, final int width, final int height, final int quality, final boolean withFlash){
 //    Log.d(TAG, "CameraPreview startRecord camera: " + camera + " width: " + width + ", height: " + height + ", quality: " + quality);
 
     if(mCamera != null) {
@@ -804,7 +804,7 @@ public class CameraActivity extends Fragment {
       }
 
       this.recordFilePath = filePath;
-      int mOrientationHint = calculateOrientationHint();
+      int mOrientationHint = calculateOrientationHint(rotation);
       int videoWidth = 0;
       int videoHeight = 0;
       Camera.Parameters cameraParams = mCamera.getParameters();
@@ -832,6 +832,7 @@ public class CameraActivity extends Fragment {
           }
         }
       }
+      mCamera.setDisplayOrientation(mOrientationHint);
       mCamera.unlock();
       mRecorder = new MediaRecorder();
 
@@ -903,44 +904,19 @@ public class CameraActivity extends Fragment {
     }
   }
 
-  public int calculateOrientationHint() {
-    DisplayMetrics dm = new DisplayMetrics();
-    Camera.CameraInfo info = new Camera.CameraInfo();
-    Camera.getCameraInfo(defaultCameraId, info);
-    int cameraRotationOffset = info.orientation;
-    Activity activity = getActivity();
-
-    activity.getWindowManager().getDefaultDisplay().getMetrics(dm);
-    int currentScreenRotation = activity.getWindowManager().getDefaultDisplay().getRotation();
-
-    int degrees = 0;
-    switch (currentScreenRotation) {
-      case Surface.ROTATION_0:
-        degrees = 0;
-        break;
-      case Surface.ROTATION_90:
-        degrees = 90;
-        break;
-      case Surface.ROTATION_180:
-        degrees = 180;
-        break;
-      case Surface.ROTATION_270:
-        degrees = 270;
-        break;
+  public int calculateOrientationHint(String rotation) {
+    switch (rotation) {
+      case "landscape-primary":
+          return 0;
+      case "portrait-primary":
+          return 90;
+      case "landscape-secondary":
+          return 180;
+      case "portrait-secondary":
+      return 270;
+      default:
+          return 90;
     }
-
-    int orientation;
-    if (info.facing == Camera.CameraInfo.CAMERA_FACING_FRONT) {
-      orientation = (cameraRotationOffset + degrees) % 360;
-      if (degrees != 0) {
-        orientation = (360 - orientation) % 360;
-      }
-    } else {
-      orientation = (cameraRotationOffset - degrees + 360) % 360;
-    }
-    Log.w(TAG, "************orientationHint ***********= " + orientation);
-
-    return orientation;
   }
 
   public void stopRecord() {

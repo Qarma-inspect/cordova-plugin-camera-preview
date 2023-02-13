@@ -239,7 +239,7 @@ CameraPreview.startRecordVideo = function (opts, onSuccess, onError) {
       opts.quality = 85;
     }
   
-    exec(onSuccess, onError, PLUGIN_NAME, "startRecordVideo", [opts.fileName, opts.cameraDirection, opts.width, opts.height, opts.quality, opts.withFlash]);
+    exec(onSuccess, onError, PLUGIN_NAME, "startRecordVideo", [opts.fileName, opts.cameraDirection, opts.rotation, opts.width, opts.height, opts.quality, opts.withFlash]);
 };
   
 CameraPreview.stopRecordVideo = function (onSuccess, onError) {

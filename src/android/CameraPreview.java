@@ -174,7 +174,7 @@ public class CameraPreview extends CordovaPlugin implements CameraActivity.Camer
       return setCameraParameterResolution(args.getInt(0), args.getInt(1), callbackContext);
     } else if (START_RECORD_VIDEO_ACTION.equals(action)) {
         if ( cordova.hasPermission(videoPermissions[0]) && cordova.hasPermission(videoPermissions[1])) {
-            return startRecordVideo(args.getString(0), args.getString(1), args.getInt(2), args.getInt(3), args.getInt(4), args.getBoolean(5), callbackContext);
+            return startRecordVideo(args.getString(0), args.getString(1), args.getString(2), args.getInt(3), args.getInt(4), args.getInt(5), args.getBoolean(6), callbackContext);
         } else {
             this.execCallback = callbackContext;
             this.execArgs = args;
@@ -198,7 +198,7 @@ public class CameraPreview extends CordovaPlugin implements CameraActivity.Camer
     if (requestCode == CAM_REQ_CODE) {
       startCamera(this.execArgs.getInt(0), this.execArgs.getInt(1), this.execArgs.getInt(2), this.execArgs.getInt(3), this.execArgs.getString(4), this.execArgs.getBoolean(5), this.execArgs.getBoolean(6), this.execArgs.getBoolean(7), this.execArgs.getString(8), this.execArgs.getBoolean(9), this.execCallback);
     } else if(requestCode == VID_REQ_CODE) {
-      startRecordVideo(this.execArgs.getString(0), this.execArgs.getString(1), this.execArgs.getInt(2), this.execArgs.getInt(3), this.execArgs.getInt(4), this.execArgs.getBoolean(5),  this.execCallback);
+      startRecordVideo(this.execArgs.getString(0), this.execArgs.getString(1),  this.execArgs.getString(2), this.execArgs.getInt(3), this.execArgs.getInt(4), this.execArgs.getInt(5), this.execArgs.getBoolean(6),  this.execCallback);
     }
   }
 
@@ -387,7 +387,7 @@ public class CameraPreview extends CordovaPlugin implements CameraActivity.Camer
     fragment.takePictureToFile(width, height, quality, targetFileName, orientation);
     return true;
   }
-    private boolean startRecordVideo(final String fileName, final String camera, final int width, final int height, final int quality, final boolean withFlash, CallbackContext callbackContext) {
+    private boolean startRecordVideo(final String fileName, final String camera, final String rotation, final int width, final int height, final int quality, final boolean withFlash, CallbackContext callbackContext) {
       if(this.hasView(callbackContext) == false){
           return true;
       }
@@ -396,7 +396,7 @@ public class CameraPreview extends CordovaPlugin implements CameraActivity.Camer
       cordova.getThreadPool().execute(new Runnable() {
           @Override
           public void run() {
-              fragment.startRecord(webView, filePath, camera, width, height, quality, withFlash);
+              fragment.startRecord(webView, filePath, camera, rotation, width, height, quality, withFlash);
           }
       });
 
