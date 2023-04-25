@@ -797,7 +797,6 @@ public class CameraActivity extends Fragment {
 
     if(mCamera != null) {
       Activity activity = getActivity();
-      muteStream(true, activity);
       if (this.mRecordingState == RecordingState.STARTED) {
         Log.d(TAG, "Already Recording");
         return;
