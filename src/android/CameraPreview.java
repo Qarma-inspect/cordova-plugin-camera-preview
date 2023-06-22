@@ -113,6 +113,7 @@ public class CameraPreview extends CordovaPlugin implements CameraActivity.Camer
               args.getInt(2),
               args.getString(3),
               args.getInt(4),
+              args.getBoolean(5),
               callbackContext);
     } else if (COLOR_EFFECT_ACTION.equals(action)) {
       return setColorEffect(args.getString(0), callbackContext);
@@ -378,13 +379,13 @@ public class CameraPreview extends CordovaPlugin implements CameraActivity.Camer
     return true;
   }
 
-  private boolean takePictureToFile(int width, int height, int quality, String targetFileName, int orientation, CallbackContext callbackContext) {
+  private boolean takePictureToFile(int width, int height, int quality, String targetFileName, int orientation, boolean compressed, CallbackContext callbackContext) {
     if(this.hasView(callbackContext) == false){
       return true;
     }
 
     takePictureCallbackContext = callbackContext;
-    fragment.takePictureToFile(width, height, quality, targetFileName, orientation);
+    fragment.takePictureToFile(width, height, quality, targetFileName, orientation, compressed);
     return true;
   }
     private boolean startRecordVideo(final String fileName, final String camera, final String rotation, final int width, final int height, final int quality, final boolean withFlash, CallbackContext callbackContext) {

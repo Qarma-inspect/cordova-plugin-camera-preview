@@ -591,13 +591,15 @@ public class CameraActivity extends Fragment {
           final int height,
           final int quality,
           final String targetFileName,
-          final int orientation
+          final int orientation,
+          final boolean compressed
   ) {
     Log.d(TAG, "CameraPreview takePictureToFile width: " + width +
             ", height: " + height +
             ", quality: " + quality +
             ", targetFileName: " + targetFileName +
-            ", orientation:" + orientation
+            ", orientation:" + orientation +
+            ", compressed:" + compressed
     );
 
     final String targetThumbnailFilename = "thumb-" +targetFileName;
@@ -642,7 +644,7 @@ public class CameraActivity extends Fragment {
         new AsyncTask<Void, Void, Void>() {
           @Override
           protected Void doInBackground(Void... voids) {
-            processImage(data, quality, targetFileName, targetThumbnailFilename, getActivity().getApplicationContext());
+            processImage(data, quality, compressed, targetFileName, targetThumbnailFilename, getActivity().getApplicationContext());
             return null;
           }
 
@@ -695,7 +697,7 @@ public class CameraActivity extends Fragment {
     canTakePicture = true;
   }
 
-  private void processImage(byte[] data, int quality, String targetFileName, String targetThumbnailFilename, Context context) {
+  private void processImage(byte[] data, int quality, boolean compressed, String targetFileName, String targetThumbnailFilename, Context context) {
       try {
           Matrix matrix = new Matrix();
 
@@ -717,7 +719,7 @@ public class CameraActivity extends Fragment {
           int imageHeight= outputData.getHeight();
           double imageRatio = (double) Math.min(imageWidth, imageHeight) / Math.max(imageWidth, imageHeight);
           final double expectedRatio = 0.75;
-          if(imageWidth * imageHeight > 1600 * 1200 && imageRatio == expectedRatio) {
+          if(imageWidth * imageHeight > 1600 * 1200 && imageRatio == expectedRatio && compressed == true) {
               int newWidth = imageWidth > imageHeight ? 1600 : 1200;
               int newHeight = imageWidth > imageHeight ? 1200 : 1600;
               Bitmap scaledDownImage = Bitmap.createScaledBitmap(outputData, newWidth, newHeight, true);
