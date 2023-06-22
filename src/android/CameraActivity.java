@@ -592,17 +592,19 @@ public class CameraActivity extends Fragment {
           final int quality,
           final String targetFileName,
           final int orientation,
-          final boolean compressed
+          final boolean compressed,
+          final boolean jpg
   ) {
     Log.d(TAG, "CameraPreview takePictureToFile width: " + width +
             ", height: " + height +
             ", quality: " + quality +
             ", targetFileName: " + targetFileName +
             ", orientation:" + orientation +
-            ", compressed:" + compressed
+            ", compressed:" + compressed + 
+            ", jpg:" + jpg 
     );
 
-    final String targetThumbnailFilename = "thumb-" +targetFileName;
+    final String targetThumbnailFilename = "thumb-" + targetFileName;
 
     if(mPreview == null) {
       canTakePicture = true;
@@ -644,7 +646,7 @@ public class CameraActivity extends Fragment {
         new AsyncTask<Void, Void, Void>() {
           @Override
           protected Void doInBackground(Void... voids) {
-            processImage(data, quality, compressed, targetFileName, targetThumbnailFilename, getActivity().getApplicationContext());
+            processImage(data, quality, compressed, jpg, targetFileName, targetThumbnailFilename, getActivity().getApplicationContext());
             return null;
           }
 
@@ -697,7 +699,7 @@ public class CameraActivity extends Fragment {
     canTakePicture = true;
   }
 
-  private void processImage(byte[] data, int quality, boolean compressed, String targetFileName, String targetThumbnailFilename, Context context) {
+  private void processImage(byte[] data, int quality, boolean compressed, boolean jpg, String targetFileName, String targetThumbnailFilename, Context context) {
       try {
           Matrix matrix = new Matrix();
 
@@ -723,9 +725,17 @@ public class CameraActivity extends Fragment {
               int newWidth = imageWidth > imageHeight ? 1600 : 1200;
               int newHeight = imageWidth > imageHeight ? 1200 : 1600;
               Bitmap scaledDownImage = Bitmap.createScaledBitmap(outputData, newWidth, newHeight, true);
-              scaledDownImage.compress(CompressFormat.JPEG, quality, outputStream);
+              if(jpg == true) {
+                outputData.compress(CompressFormat.JPEG, quality, outputStream);
+              } else {
+                outputData.compress(CompressFormat.PNG, quality, outputStream);
+              }
           } else {
-              outputData.compress(CompressFormat.JPEG, quality, outputStream);
+              if(jpg == true) {
+                outputData.compress(CompressFormat.JPEG, quality, outputStream);
+              } else {
+                outputData.compress(CompressFormat.PNG, quality, outputStream);
+              }
           }
 
           Rect scaledRect = RectMathUtil.contain(outputData.getWidth(), outputData.getHeight(), 200, 200);

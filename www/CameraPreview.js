@@ -87,6 +87,10 @@ CameraPreview.takePictureToFile = function(opts, onSuccess, onError) {
         opts.compressed = false;
     }
 
+    if(typeof opts.jpg == "undefined" || opts.jpg == null){
+        opts.jpg = false;
+    }
+
     exec(
         onSuccess,
         onError,
@@ -98,7 +102,8 @@ CameraPreview.takePictureToFile = function(opts, onSuccess, onError) {
             opts.quality,
             fileName,
             opts.orientation,
-            opts.compressed
+            opts.compressed,
+            opts.jpg
         ]);
 };
 
