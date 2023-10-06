@@ -638,7 +638,17 @@
   [self.sessionManager takePictureOnFocus];
 }
 
-- (CGImageRef) resizeAndRotateCGImageRef:(CFDataRef) capturedImage maxPixelSize:(CGFloat) maxPixelSize rotationAngle: (int) rotationAngle {
+- (CGImageRef) resizeAndRotateImage:(CFDataRef) capturedImage maxPixelSize:(CGFloat) maxPixelSize rotationAngle: (int) rotationAngle {
+    NSOperatingSystemVersion info = [[NSProcessInfo processInfo] operatingSystemVersion];
+    NSInteger majorVersion = info.majorVersion;
+    if(majorVersion < 17 && false) {
+        return [self resizeAndRotateImageOnVersionLessThan17:capturedImage maxPixelSize:maxPixelSize rotationAngle:rotationAngle];
+    } else {
+        return [self resizeAndRotateImageOnVersionGreaterThan17:capturedImage maxPixelSize:maxPixelSize rotationAngle:rotationAngle];
+    }
+}
+
+- (CGImageRef) resizeAndRotateImageOnVersionLessThan17:(CFDataRef) capturedImage maxPixelSize:(CGFloat) maxPixelSize rotationAngle: (int) rotationAngle {
 
     CGImageSourceRef imageSource = CGImageSourceCreateWithData(capturedImage, nil);
     CFDictionaryRef options = (__bridge CFDictionaryRef) @{
@@ -652,118 +662,160 @@
     return thumbnail;
 }
 
-- (CIImage * ) fixFrontCameraMirror: (CIImage * ) capturedImage forCamera:(AVCaptureDevicePosition)camera {
-    if (camera == AVCaptureDevicePositionFront) {
-        CGAffineTransform matrix = CGAffineTransformTranslate(CGAffineTransformMakeScale(1, -1), 0, capturedImage.extent.size.height);
-        return [capturedImage imageByApplyingTransform:matrix];
-    } else {
-        return capturedImage;
+- (CGImageRef) resizeAndRotateImageOnVersionGreaterThan17:(CFDataRef) capturedImage maxPixelSize:(CGFloat) maxPixelSize rotationAngle: (int) rotationAngle {
+    CGImageSourceRef imageSource = CGImageSourceCreateWithData(capturedImage, nil);
+    CFDictionaryRef properties = CGImageSourceCopyPropertiesAtIndex(imageSource, 0, NULL);
+    CGImageRef image = CGImageSourceCreateImageAtIndex(imageSource, 0, NULL);
+    CFRelease(imageSource);
+    
+    switch (rotationAngle) {
+        case kCGImagePropertyOrientationUp:
+        case kCGImagePropertyOrientationUpMirrored:
+            return [self resizeAndRotatePortraitUpImage:image];
+        case kCGImagePropertyOrientationDown:
+        case kCGImagePropertyOrientationDownMirrored:
+            return [self resizeAndRotatePortraitDownImage:image];
+        case kCGImagePropertyOrientationLeft:
+        case kCGImagePropertyOrientationLeftMirrored:
+            return [self resizeAndRotateLandscapeLeftImage:image];
+        default:
+            return [self resizeAndRotateLandscapeRightImage:image];
     }
 }
 
-- (CIImage *) filterImage : (CIImage * ) imageToFilter {
-    CIFilter *filter = [self.sessionManager ciFilter];
-    if (filter != nil) {
-        [self.sessionManager.filterLock lock];
-        [filter setValue:imageToFilter forKey:kCIInputImageKey];
-        CIImage * finalCImage = [filter outputImage];
-        [self.sessionManager.filterLock unlock];
-        return finalCImage;
-    } else {
-        return imageToFilter;
-    }
+- (CGImageRef) resizeAndRotatePortraitUpImage:(CGImageRef) sourceImage {
+    size_t imageWidth = CGImageGetWidth(sourceImage);
+    size_t imageHeight = CGImageGetHeight(sourceImage);
+    size_t targetWidth = 1200;
+    size_t targetHeight = 1600;
+    size_t biggerEdge = imageWidth > imageHeight ? imageWidth : imageHeight;
+    size_t smallerEdge = imageWidth < imageHeight ? imageWidth : imageHeight;
+    float scaleRatio = (float) targetHeight / biggerEdge;
+    
+    size_t bytesPerRow = biggerEdge * (CGImageGetBitsPerPixel(sourceImage) / 8);
+    size_t rawDataSize = targetHeight * bytesPerRow;
+    void * rawData = malloc(rawDataSize);
+    
+    CGContextRef bigContext = CGBitmapContextCreate(rawData, targetHeight, targetHeight, CGImageGetBitsPerComponent(sourceImage), bytesPerRow, CGImageGetColorSpace(sourceImage), CGImageGetBitmapInfo(sourceImage));
+    
+    CGAffineTransform transform = CGAffineTransformMakeTranslation(0, 0);
+    transform = CGAffineTransformScale(transform, scaleRatio, scaleRatio);
+    transform = CGAffineTransformTranslate(transform, 0, biggerEdge);
+    transform = CGAffineTransformRotate(transform, -M_PI_2);
+    
+    CGContextConcatCTM(bigContext, transform);
+    CGRect drawRect = CGRectMake(0, 0, imageWidth, imageHeight);
+    
+    CGContextDrawImage(bigContext, drawRect, sourceImage);
+    CGContextRef finalImageContext = CGBitmapContextCreateWithData(rawData, targetWidth, targetHeight, CGImageGetBitsPerComponent(sourceImage), bytesPerRow, CGImageGetColorSpace(sourceImage), CGImageGetBitmapInfo(sourceImage), nil, nil);
+    
+    CGImageRef finalImage = CGBitmapContextCreateImage(finalImageContext);
+    
+    CGContextRelease(finalImageContext);
+    CGContextRelease(bigContext);
+    CFRelease(sourceImage);
+    free(rawData);
+    
+    return finalImage;
 }
 
-//- (CGImageRef) rotateImage:(CIImage * ) finalCImage withDegrees:(double) additionalDegrees {
-//    CGImageRef finalImage = [self.cameraRenderController.ciContext createCGImage:finalCImage fromRect:finalCImage.extent];
-//    UIImage *resultImage = [UIImage imageWithCGImage:finalImage];
-//
-//    // rotate the image, such that it lines up with the screen.
-//    double radians = [self radiansFromUIImageOrientation:resultImage.imageOrientation];
-//
-//    //
-//    double degreesToRadians = [self evenAngleInDegreesToRadians:additionalDegrees];
-//    double additionOfAngles = [self addEvenAnglesInRadians:degreesToRadians to:radians];
-//
-//    CGImageRef resultFinalImage = [self CGImageRotated:finalImage withRadians:additionOfAngles];
-//
-//    CGImageRelease(finalImage); // release CGImageRef to remove memory leaks
-//    return resultFinalImage;
-//}
+- (CGImageRef) resizeAndRotatePortraitDownImage:(CGImageRef) sourceImage {
+    size_t imageWidth = CGImageGetWidth(sourceImage);
+    size_t imageHeight = CGImageGetHeight(sourceImage);
+    size_t targetWidth = 1200;
+    size_t targetHeight = 1600;
+    size_t biggerEdge = imageWidth > imageHeight ? imageWidth : imageHeight;
+    size_t smallerEdge = imageWidth < imageHeight ? imageWidth : imageHeight;
+    float scaleRatio = (float) targetHeight / biggerEdge;
+    
+    size_t bytesPerRow = biggerEdge * (CGImageGetBitsPerPixel(sourceImage) / 8);
 
-/**
- Input must be one of 0.0, 90, 180, 270, 360, -90, -180, -270
-
- Returns one of 0.0, M_PI_2, M_PI, -M_PI_2;
- **/
-- (double) evenAngleInDegreesToRadians:(double) degrees{
-    if(degrees == 0.0 || degrees == 360){
-        return 0.0;
-    } else if(degrees == 90 || degrees == -270){
-        return M_PI_2;
-    } else if(degrees == 180 || degrees == -180) {
-        return M_PI;
-    } else if (degrees == 270 || degrees == -90) {
-        return -M_PI_2;
-    } else {
-        return 0.0;
-    }
+    void * rawData = malloc(targetHeight * bytesPerRow);
+    
+    CGContextRef bigContext = CGBitmapContextCreate(rawData, targetHeight, targetHeight, CGImageGetBitsPerComponent(sourceImage), bytesPerRow, CGImageGetColorSpace(sourceImage), CGImageGetBitmapInfo(sourceImage));
+    
+    CGAffineTransform transform = CGAffineTransformMakeTranslation(0, 0);
+  
+    transform = CGAffineTransformScale(transform, scaleRatio, scaleRatio);
+    transform = CGAffineTransformTranslate(transform, smallerEdge, 0);
+    transform = CGAffineTransformRotate(transform, M_PI_2);
+    
+    CGContextConcatCTM(bigContext, transform);
+    CGRect drawRect = CGRectMake(0, 0, imageWidth, imageHeight);
+    
+    CGContextDrawImage(bigContext, drawRect, sourceImage);
+    CGContextRef finalImageContext = CGBitmapContextCreateWithData(rawData, targetWidth, targetHeight, CGImageGetBitsPerComponent(sourceImage), bytesPerRow, CGImageGetColorSpace(sourceImage), CGImageGetBitmapInfo(sourceImage), nil, nil);
+    
+    CGImageRef finalImage = CGBitmapContextCreateImage(finalImageContext);
+    
+    CGContextRelease(finalImageContext);
+    CGContextRelease(bigContext);
+    free(rawData);
+    CFRelease(sourceImage);
+    
+    return finalImage;
 }
 
-/**
- Both inputs must be one of 0.0, M_PI_2, M_PI, -M_PI_2
+- (CGImageRef) resizeAndRotateLandscapeLeftImage:(CGImageRef) sourceImage {
+    size_t imageWidth = CGImageGetWidth(sourceImage);
+    size_t imageHeight = CGImageGetHeight(sourceImage);
+    size_t targetWidth = 1600;
+    size_t targetHeight = 1200;
+    size_t biggerEdge = imageWidth > imageHeight ? imageWidth : imageHeight;
+    float scaleRatio = (float) targetWidth / biggerEdge;
+    
+    size_t bytesPerRow = biggerEdge * (CGImageGetBitsPerPixel(sourceImage) / 8);
 
- Returns one of 0.0, M_PI_2, M_PI, -M_PI_2
- **/
-- (double) addEvenAnglesInRadians:(double) radians1 to:(double) radians2 {
-    if(radians2 == 0.0){
-        return radians1;
-    }
-
-    if (radians1 == 0.0){
-        return radians2;
-    } else if (radians1 == -M_PI_2) {
-
-        if(radians2 == -M_PI_2){
-            return M_PI;
-        } else if ( radians2 == M_PI_2) {
-            return 0.0;
-        } else if ( radians2 == M_PI) {
-            return M_PI_2;
-        } else {
-            return -M_PI_2;
-        }
-
-    } else if (radians1 == M_PI) {
-
-        if(radians2 == -M_PI_2){
-            return M_PI_2;
-        } else if (radians2 == M_PI_2) {
-            return -M_PI_2;
-        } else if (radians2 == M_PI){
-            return 0.0;
-        } else {
-            return M_PI;
-        }
-
-    } else if (radians1 == M_PI_2){
-
-        if(radians2 == -M_PI_2){
-            return 0;
-        } else if (radians2 == M_PI_2){
-            return M_PI;
-        } else if (radians2 == M_PI){
-            return -M_PI_2;
-        } else {
-            return M_PI_2;
-        }
-
-    } else {
-        return 0.0;
-    }
+    void * rawData = malloc(targetWidth * bytesPerRow);
+    
+    CGContextRef bigContext = CGBitmapContextCreate(rawData, targetWidth, targetWidth, CGImageGetBitsPerComponent(sourceImage), bytesPerRow, CGImageGetColorSpace(sourceImage), CGImageGetBitmapInfo(sourceImage));
+    
+    CGAffineTransform transform = CGAffineTransformMakeTranslation(0, 0);
+    transform = CGAffineTransformScale(transform, scaleRatio, scaleRatio);
+    transform = CGAffineTransformTranslate(transform, biggerEdge, biggerEdge);
+    transform = CGAffineTransformRotate(transform, M_PI);
+    
+    CGContextConcatCTM(bigContext, transform);
+    CGRect drawRect = CGRectMake(0, 0, imageWidth, imageHeight);
+    
+    CGContextDrawImage(bigContext, drawRect, sourceImage);
+    
+    CGContextRef finalImageContext = CGBitmapContextCreateWithData(rawData, targetWidth, targetHeight, CGImageGetBitsPerComponent(sourceImage), bytesPerRow, CGImageGetColorSpace(sourceImage), CGImageGetBitmapInfo(sourceImage), nil, nil);
+    
+    CGImageRef finalImage = CGBitmapContextCreateImage(finalImageContext);
+    
+    CGContextRelease(finalImageContext);
+    CGContextRelease(bigContext);
+    free(rawData);
+    CFRelease(sourceImage);
+    
+    return finalImage;
 }
 
-
+- (CGImageRef) resizeAndRotateLandscapeRightImage:(CGImageRef) sourceImage {
+    size_t imageWidth = CGImageGetWidth(sourceImage);
+    size_t imageHeight = CGImageGetHeight(sourceImage);
+    size_t targetWidth = 1600;
+    size_t targetHeight = 1200;
+    size_t biggerEdge = imageWidth > imageHeight ? imageWidth : imageHeight;
+    float scaleRatio = (float) targetWidth / biggerEdge;
+    
+    size_t bytesPerRow = targetWidth * (CGImageGetBitsPerPixel(sourceImage) / 8);
+    
+    CGAffineTransform transform = CGAffineTransformMakeTranslation(0, 0);
+    transform = CGAffineTransformScale(transform, scaleRatio, scaleRatio);
+    
+    CGContextRef context = CGBitmapContextCreateWithData(NULL, targetWidth, targetHeight, CGImageGetBitsPerComponent(sourceImage), bytesPerRow, CGImageGetColorSpace(sourceImage), CGImageGetBitmapInfo(sourceImage), nil, nil);
+    CGContextConcatCTM(context, transform);
+    CGRect drawRect = CGRectMake(0, 0, imageWidth, imageHeight);
+    CGContextDrawImage(context, drawRect, sourceImage);
+    CGImageRef finalImage = CGBitmapContextCreateImage(context);
+    
+    CGContextRelease(context);
+    CFRelease(sourceImage);
+    
+    return finalImage;
+}
 
 - (void) invokeTakePicture:(CGFloat) width
                 withHeight:(CGFloat) height
@@ -776,6 +828,7 @@
     CFAbsoluteTime start = CFAbsoluteTimeGetCurrent();
 
     AVCaptureConnection *connection = [self.sessionManager.stillImageOutput connectionWithMediaType:AVMediaTypeVideo];
+   
     [self.sessionManager.stillImageOutput captureStillImageAsynchronouslyFromConnection:(connection) completionHandler:^(CMSampleBufferRef sampleBuffer, NSError *error) {
 
         if (error) {
@@ -797,12 +850,12 @@
             int orientation = [self getRotationIndex:rotation];
 
             // resize, rotate and write image to disk
-            CGImageRef capturedImageRef = [self resizeAndRotateCGImageRef:imgDataRef maxPixelSize:1600 rotationAngle:orientation];
+            CGImageRef capturedImageRef = [self resizeAndRotateImage:imgDataRef maxPixelSize:1600 rotationAngle:orientation];
             CGImageWriteToFile(capturedImageRef, fullPath, quality);
             CFRelease(capturedImageRef);
 
             // resize, rotate and write thumbnail image to disk
-            CGImageRef thumbnailImageRef = [self resizeAndRotateCGImageRef:imgDataRef maxPixelSize:200 rotationAngle:orientation];
+            CGImageRef thumbnailImageRef = [self resizeAndRotateImage:imgDataRef maxPixelSize:200 rotationAngle:orientation];
             CGImageWriteToFile(thumbnailImageRef, thumbPath, 1);
             CFRelease(thumbnailImageRef);
 
@@ -859,50 +912,5 @@ void CGImageWriteToFile(CGImageRef image, NSString *path, CGFloat quality) {
     } else {
         return kCGImagePropertyOrientationUp;
     }
-}
-
-- (void) invokeTakePicture:(CGFloat) width withHeight:(CGFloat) height withQuality:(CGFloat) quality{
-    //    AVCaptureConnection *connection = [self.sessionManager.stillImageOutput connectionWithMediaType:AVMediaTypeVideo];
-    //    [self.sessionManager.stillImageOutput captureStillImageAsynchronouslyFromConnection:(connection) completionHandler:^(CMSampleBufferRef sampleBuffer, NSError *error) {
-    //
-    //      NSLog(@"Done creating still image");
-    //
-    //      if (error) {
-    //        NSLog(@"%@", error);
-    //      } else {
-    //
-    //        NSData *imageData = [AVCaptureStillImageOutput jpegStillImageNSDataRepresentation:sampleBuffer];
-    //        UIImage *capturedImage  = [[UIImage alloc] initWithData:imageData];
-    //        CIImage *capturedCImage = [self resizeImage:capturedImage toWidth:width toHeight:height];
-    //
-    //        CIImage *imageToFilter = [self fixFrontCameraMirror:capturedCImage forCamera:self.sessionManager.defaultCamera];
-    //        CIImage *finalCImage = [self filterImage:imageToFilter];
-    //
-    //        // TODO. This does not work at all any more.
-    //        // There is no CI context anymore, so it can not do any rotations.
-    //        // Should be implemented with IOFramework anyway.
-    //        CGImageRef resultFinalImage = [self rotateImage:finalCImage withDegrees:0.0];
-    //
-    //        NSString *base64Image = [self getBase64Image:resultFinalImage withQuality:quality];
-    //
-    //         CGImageRelease(resultFinalImage); // release CGImageRef to remove memory leaks
-    //
-    //        NSMutableArray *params = [[NSMutableArray alloc] init];
-    //        [params addObject:base64Image];
-    //
-    //        CDVPluginResult *pluginResult = [CDVPluginResult resultWithStatus:CDVCommandStatus_OK messageAsArray:params];
-    //        // [pluginResult setKeepCallbackAsBool:true];
-    //        [self.commandDelegate sendPluginResult:pluginResult callbackId:self.onPictureTakenHandlerId];
-    //      }
-    //    }];
-
-
-    // We do not want to use this function at all, as we do not want to deal with base64 data in javascript if
-    // at all possible.
-    NSMutableArray *params = [[NSMutableArray alloc] init];
-    [params addObject: @""];
-
-    CDVPluginResult *pluginResult = [CDVPluginResult resultWithStatus:CDVCommandStatus_OK messageAsArray:params];
-    [self.commandDelegate sendPluginResult:pluginResult callbackId:self.onPictureTakenHandlerId];
 }
 @end
