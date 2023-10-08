@@ -641,7 +641,7 @@
 - (CGImageRef) resizeAndRotateImage:(CFDataRef) capturedImage maxPixelSize:(CGFloat) maxPixelSize rotationAngle: (int) rotationAngle {
     NSOperatingSystemVersion info = [[NSProcessInfo processInfo] operatingSystemVersion];
     NSInteger majorVersion = info.majorVersion;
-    if(majorVersion < 17 && false) {
+    if(majorVersion < 17) {
         return [self resizeAndRotateImageOnVersionLessThan17:capturedImage maxPixelSize:maxPixelSize rotationAngle:rotationAngle];
     } else {
         return [self resizeAndRotateImageOnVersionGreaterThan17:capturedImage maxPixelSize:maxPixelSize rotationAngle:rotationAngle];
@@ -830,9 +830,9 @@
     AVCaptureConnection *connection = [self.sessionManager.stillImageOutput connectionWithMediaType:AVMediaTypeVideo];
    
     [self.sessionManager.stillImageOutput captureStillImageAsynchronouslyFromConnection:(connection) completionHandler:^(CMSampleBufferRef sampleBuffer, NSError *error) {
-
+        
         if (error) {
-            CDVPluginResult *pluginResult = [CDVPluginResult resultWithStatus:CDVCommandStatus_ERROR messageAsString:@"Error after calling captureStillImage."];
+            CDVPluginResult *pluginResult = [CDVPluginResult resultWithStatus:CDVCommandStatus_ERROR messageAsString:[NSString stringWithFormat:@"%@", error]];
             [self.commandDelegate sendPluginResult:pluginResult callbackId: callbackId];
             NSLog(@"%@", error);
             return;
