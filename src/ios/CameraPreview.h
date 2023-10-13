@@ -47,8 +47,15 @@
 
 - (void) invokeTapToFocus:(CGPoint) point;
 
+- (void) captureOutput:(AVCapturePhotoOutput *)output didFinishProcessingPhoto:(AVCapturePhoto *)photo error:(nullable NSError *)error;
+
 @property (nonatomic) CameraSessionManager *sessionManager;
 @property (nonatomic) CameraRenderController *cameraRenderController;
 @property (nonatomic) NSString *onPictureTakenHandlerId;
+@property (nonatomic) NSString * _Nonnull commandId;
+@property (nonatomic) NSString * _Nonnull targetFileName;
+@property (nonatomic) int targetRotation;
+@property (nonatomic) NSInteger iosVersion;
+@property (nonatomic) CFAbsoluteTime startedTime;
 
 @end

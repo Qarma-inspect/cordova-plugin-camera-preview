@@ -17,6 +17,8 @@
 }
 
 - (void) startCamera:(CDVInvokedUrlCommand*)command {
+    NSOperatingSystemVersion info = [[NSProcessInfo processInfo] operatingSystemVersion];
+    self.iosVersion = info.majorVersion;
 
   CDVPluginResult *pluginResult;
 
@@ -69,12 +71,21 @@
 
     // Setup session
     self.sessionManager.delegate = self.cameraRenderController;
+      if(self.iosVersion < 17) {
+          [self.sessionManager setupSession:defaultCamera completion:^(BOOL started) {
 
-    [self.sessionManager setupSession:defaultCamera completion:^(BOOL started) {
+            [self.commandDelegate sendPluginResult:[CDVPluginResult resultWithStatus:CDVCommandStatus_OK] callbackId:command.callbackId];
 
-      [self.commandDelegate sendPluginResult:[CDVPluginResult resultWithStatus:CDVCommandStatus_OK] callbackId:command.callbackId];
+          }];
+      } else {
+          [self.sessionManager setupSessionOnIOS17:defaultCamera completion:^(BOOL started) {
 
-    }];
+            [self.commandDelegate sendPluginResult:[CDVPluginResult resultWithStatus:CDVCommandStatus_OK] callbackId:command.callbackId];
+
+          }];
+      }
+    
+  
 
   } else {
     pluginResult = [CDVPluginResult resultWithStatus:CDVCommandStatus_ERROR messageAsString:@"Invalid number of parameters"];
@@ -436,7 +447,6 @@
 
 - (void) takePictureToFile:(CDVInvokedUrlCommand *)command {
     NSLog(@"take Picture to file.");
-
     if (self.cameraRenderController != NULL) {
         //self.onPictureTakenHandlerId = command.callbackId;
 
@@ -445,13 +455,23 @@
         CGFloat quality = (CGFloat)[command.arguments[2] floatValue] / 100.0f;
         NSString * fileName = command.arguments[3];
         double rotation = (double) [command.arguments[4] doubleValue];
+        if(self.iosVersion < 17) {
+            [self invokeTakePicture:width
+                         withHeight:height
+                        withQuality:quality
+                       withFileName:fileName
+                      rotateDegrees:rotation
+                     withCallbackId:command.callbackId];
+        } else {
+            [self invokeTakePictureOnIOS17:width
+                         withHeight:height
+                        withQuality:quality
+                       withFileName:fileName
+                      rotateDegrees:rotation
+                     withCallbackId:command.callbackId];
+        }
 
-        [self invokeTakePicture:width
-                     withHeight:height
-                    withQuality:quality
-                   withFileName:fileName
-                  rotateDegrees:rotation
-                 withCallbackId:command.callbackId];
+       
     } else {
         CDVPluginResult *pluginResult = [CDVPluginResult resultWithStatus:CDVCommandStatus_ERROR messageAsString:@"Camera not started"];
         [self.commandDelegate sendPluginResult:pluginResult callbackId:command.callbackId];
@@ -638,17 +658,15 @@
   [self.sessionManager takePictureOnFocus];
 }
 
-- (CGImageRef) resizeAndRotateImage:(CFDataRef) capturedImage maxPixelSize:(CGFloat) maxPixelSize rotationAngle: (int) rotationAngle {
-    NSOperatingSystemVersion info = [[NSProcessInfo processInfo] operatingSystemVersion];
-    NSInteger majorVersion = info.majorVersion;
-    if(majorVersion < 17) {
-        return [self resizeAndRotateImageOnVersionLessThan17:capturedImage maxPixelSize:maxPixelSize rotationAngle:rotationAngle];
+- (CGImageRef) resizeAndRotateImage:(CFDataRef) capturedImage biggerEdge:(CGFloat) biggerEdge smallerEdge: (CGFloat) smallerEdge rotationAngle: (int) rotationAngle {
+    if(self.iosVersion < 17) {
+        return [self resizeAndRotateImageOnVersionLessThan17:capturedImage maxPixelSize:biggerEdge rotationAngle:(int) rotationAngle];
     } else {
-        return [self resizeAndRotateImageOnVersionGreaterThan17:capturedImage maxPixelSize:maxPixelSize rotationAngle:rotationAngle];
+        return [self resizeAndRotateImageOnVersionGreaterThan17:capturedImage biggerEdge:biggerEdge smallerEdge:smallerEdge rotationAngle:(int) rotationAngle];
     }
 }
 
-- (CGImageRef) resizeAndRotateImageOnVersionLessThan17:(CFDataRef) capturedImage maxPixelSize:(CGFloat) maxPixelSize rotationAngle: (int) rotationAngle {
+- (CGImageRef) resizeAndRotateImageOnVersionLessThan17:(CFDataRef) capturedImage maxPixelSize:(CGFloat) maxPixelSize rotationAngle:(int) rotationAngle {
 
     CGImageSourceRef imageSource = CGImageSourceCreateWithData(capturedImage, nil);
     CFDictionaryRef options = (__bridge CFDictionaryRef) @{
@@ -662,7 +680,7 @@
     return thumbnail;
 }
 
-- (CGImageRef) resizeAndRotateImageOnVersionGreaterThan17:(CFDataRef) capturedImage maxPixelSize:(CGFloat) maxPixelSize rotationAngle: (int) rotationAngle {
+- (CGImageRef) resizeAndRotateImageOnVersionGreaterThan17:(CFDataRef) capturedImage biggerEdge:(CGFloat) biggerEdge smallerEdge:(CGFloat) smallerEdge rotationAngle: (int) rotationAngle {
     CGImageSourceRef imageSource = CGImageSourceCreateWithData(capturedImage, nil);
     CFDictionaryRef properties = CGImageSourceCopyPropertiesAtIndex(imageSource, 0, NULL);
     CGImageRef image = CGImageSourceCreateImageAtIndex(imageSource, 0, NULL);
@@ -671,23 +689,21 @@
     switch (rotationAngle) {
         case kCGImagePropertyOrientationUp:
         case kCGImagePropertyOrientationUpMirrored:
-            return [self resizeAndRotatePortraitUpImage:image];
+            return [self resizeAndRotatePortraitUpImage:image targetWidth:smallerEdge targetHeight:biggerEdge];
         case kCGImagePropertyOrientationDown:
         case kCGImagePropertyOrientationDownMirrored:
-            return [self resizeAndRotatePortraitDownImage:image];
+            return [self resizeAndRotatePortraitDownImage:image targetWidth:smallerEdge targetHeight:biggerEdge];
         case kCGImagePropertyOrientationLeft:
         case kCGImagePropertyOrientationLeftMirrored:
-            return [self resizeAndRotateLandscapeLeftImage:image];
+            return [self resizeAndRotateLandscapeLeftImage:image targetWidth:biggerEdge targetHeight:smallerEdge];
         default:
-            return [self resizeAndRotateLandscapeRightImage:image];
+            return [self resizeAndRotateLandscapeRightImage:image targetWidth:biggerEdge targetHeight:smallerEdge];
     }
 }
 
-- (CGImageRef) resizeAndRotatePortraitUpImage:(CGImageRef) sourceImage {
+- (CGImageRef) resizeAndRotatePortraitUpImage:(CGImageRef) sourceImage targetWidth:(CGFloat) targetWidth targetHeight: (CGFloat) targetHeight {
     size_t imageWidth = CGImageGetWidth(sourceImage);
     size_t imageHeight = CGImageGetHeight(sourceImage);
-    size_t targetWidth = 1200;
-    size_t targetHeight = 1600;
     size_t biggerEdge = imageWidth > imageHeight ? imageWidth : imageHeight;
     size_t smallerEdge = imageWidth < imageHeight ? imageWidth : imageHeight;
     float scaleRatio = (float) targetHeight / biggerEdge;
@@ -719,11 +735,9 @@
     return finalImage;
 }
 
-- (CGImageRef) resizeAndRotatePortraitDownImage:(CGImageRef) sourceImage {
+- (CGImageRef) resizeAndRotatePortraitDownImage:(CGImageRef) sourceImage targetWidth:(CGFloat) targetWidth targetHeight: (CGFloat) targetHeight{
     size_t imageWidth = CGImageGetWidth(sourceImage);
     size_t imageHeight = CGImageGetHeight(sourceImage);
-    size_t targetWidth = 1200;
-    size_t targetHeight = 1600;
     size_t biggerEdge = imageWidth > imageHeight ? imageWidth : imageHeight;
     size_t smallerEdge = imageWidth < imageHeight ? imageWidth : imageHeight;
     float scaleRatio = (float) targetHeight / biggerEdge;
@@ -756,11 +770,9 @@
     return finalImage;
 }
 
-- (CGImageRef) resizeAndRotateLandscapeLeftImage:(CGImageRef) sourceImage {
+- (CGImageRef) resizeAndRotateLandscapeLeftImage:(CGImageRef) sourceImage targetWidth:(CGFloat) targetWidth targetHeight: (CGFloat) targetHeight{
     size_t imageWidth = CGImageGetWidth(sourceImage);
     size_t imageHeight = CGImageGetHeight(sourceImage);
-    size_t targetWidth = 1600;
-    size_t targetHeight = 1200;
     size_t biggerEdge = imageWidth > imageHeight ? imageWidth : imageHeight;
     float scaleRatio = (float) targetWidth / biggerEdge;
     
@@ -792,11 +804,9 @@
     return finalImage;
 }
 
-- (CGImageRef) resizeAndRotateLandscapeRightImage:(CGImageRef) sourceImage {
+- (CGImageRef) resizeAndRotateLandscapeRightImage:(CGImageRef) sourceImage targetWidth:(CGFloat) targetWidth targetHeight: (CGFloat) targetHeight{
     size_t imageWidth = CGImageGetWidth(sourceImage);
     size_t imageHeight = CGImageGetHeight(sourceImage);
-    size_t targetWidth = 1600;
-    size_t targetHeight = 1200;
     size_t biggerEdge = imageWidth > imageHeight ? imageWidth : imageHeight;
     float scaleRatio = (float) targetWidth / biggerEdge;
     
@@ -822,7 +832,7 @@
                withQuality:(CGFloat) quality
               withFileName:(NSString *) fileName
              rotateDegrees:(double) rotation
-            withCallbackId:(NSString *) callbackId {
+            withCallbackId:(NSString *) callbackId {    
     NSString * thumbnailFileName = [@"thumb-" stringByAppendingString:fileName];
 
     CFAbsoluteTime start = CFAbsoluteTimeGetCurrent();
@@ -830,7 +840,7 @@
     AVCaptureConnection *connection = [self.sessionManager.stillImageOutput connectionWithMediaType:AVMediaTypeVideo];
    
     [self.sessionManager.stillImageOutput captureStillImageAsynchronouslyFromConnection:(connection) completionHandler:^(CMSampleBufferRef sampleBuffer, NSError *error) {
-        
+
         if (error) {
             CDVPluginResult *pluginResult = [CDVPluginResult resultWithStatus:CDVCommandStatus_ERROR messageAsString:[NSString stringWithFormat:@"%@", error]];
             [self.commandDelegate sendPluginResult:pluginResult callbackId: callbackId];
@@ -850,12 +860,26 @@
             int orientation = [self getRotationIndex:rotation];
 
             // resize, rotate and write image to disk
-            CGImageRef capturedImageRef = [self resizeAndRotateImage:imgDataRef maxPixelSize:1600 rotationAngle:orientation];
+            CGImageRef capturedImageRef = nil;
+            capturedImageRef = [self resizeAndRotateImage:imgDataRef biggerEdge:1600 smallerEdge:1200 rotationAngle:orientation];
+            if (capturedImageRef == nil) {
+                CDVPluginResult *pluginResult = [CDVPluginResult resultWithStatus:CDVCommandStatus_ERROR messageAsString:@"capturedImageRef is nil."];
+                [self.commandDelegate sendPluginResult:pluginResult callbackId: callbackId];
+                return;
+            }
+            
             CGImageWriteToFile(capturedImageRef, fullPath, quality);
             CFRelease(capturedImageRef);
 
             // resize, rotate and write thumbnail image to disk
-            CGImageRef thumbnailImageRef = [self resizeAndRotateImage:imgDataRef maxPixelSize:200 rotationAngle:orientation];
+            CGImageRef thumbnailImageRef = nil;
+            thumbnailImageRef = [self resizeAndRotateImage:imgDataRef biggerEdge:200 smallerEdge:200 rotationAngle:orientation];
+            if (thumbnailImageRef == nil) {
+                CDVPluginResult *pluginResult = [CDVPluginResult resultWithStatus:CDVCommandStatus_ERROR messageAsString:@"thumbnailImageRef is nil."];
+                [self.commandDelegate sendPluginResult:pluginResult callbackId: callbackId];
+                return;
+            }
+            
             CGImageWriteToFile(thumbnailImageRef, thumbPath, 1);
             CFRelease(thumbnailImageRef);
 
@@ -881,6 +905,68 @@
             }
         }
     }];
+}
+
+- (void) invokeTakePictureOnIOS17:(CGFloat) width
+                withHeight:(CGFloat) height
+               withQuality:(CGFloat) quality
+              withFileName:(NSString *) fileName
+             rotateDegrees:(double) rotation
+            withCallbackId:(NSString *) callbackId {
+    self.targetFileName = fileName;
+    self.commandId = callbackId;
+    self.targetRotation = [self getRotationIndex:rotation];
+    self.startedTime = CFAbsoluteTimeGetCurrent();
+    AVCaptureConnection *captureConnection;
+    captureConnection = [self.sessionManager.photoOutput connectionWithMediaType:AVMediaTypeVideo];
+    AVCapturePhotoSettings *photoSettings = [AVCapturePhotoSettings photoSettings];
+    [self.sessionManager.photoOutput capturePhotoWithSettings:photoSettings delegate:self];
+        
+}
+
+- (void) captureOutput:(AVCapturePhotoOutput *)output didFinishProcessingPhoto:(AVCapturePhoto *)photo error:(nullable NSError *)error {
+    if (error) {
+        NSLog(@"Error capturing photo: %@", error.localizedDescription);
+        CDVPluginResult *pluginResult = [CDVPluginResult resultWithStatus:CDVCommandStatus_ERROR messageAsString:[NSString stringWithFormat:@"%@", error]];
+        [self.commandDelegate sendPluginResult:pluginResult callbackId: self.commandId];
+    } else {
+        CFAbsoluteTime dataCaptured = CFAbsoluteTimeGetCurrent();
+
+        NSData *photoData = [photo fileDataRepresentation];
+        
+        CFDataRef imgDataRef = (CFDataRef) CFBridgingRetain(photoData);
+       
+        NSArray *paths = NSSearchPathForDirectoriesInDomains(NSLibraryDirectory, NSUserDomainMask, YES);
+        NSString* rootPath = paths[0];
+        NSString* path = [rootPath stringByAppendingPathComponent:@"NoCloud"];
+        NSString* fullPath = [path stringByAppendingFormat: @"/%@", self.targetFileName];
+        NSString * thumbnailFileName = [@"thumb-" stringByAppendingString:self.targetFileName];
+        NSString * thumbPath = [path stringByAppendingFormat: @"/%@", thumbnailFileName];
+
+        
+        CGImageRef finalImage = [self resizeAndRotateImage:imgDataRef biggerEdge:1600 smallerEdge:1200 rotationAngle:(self.targetRotation)];
+        CGImageWriteToFile(finalImage, fullPath, 1.0);
+        CFRelease(finalImage);
+        
+        CGImageRef thumbnailImage = [self resizeAndRotateImage:imgDataRef biggerEdge:400 smallerEdge:300 rotationAngle:(self.targetRotation)];
+        CGImageWriteToFile(thumbnailImage, thumbPath, 1.0);
+        CFRelease(thumbnailImage);
+        
+       CFRelease(imgDataRef);
+
+       CFAbsoluteTime imagesWrittenToDisk = CFAbsoluteTimeGetCurrent();
+
+       NSMutableArray *params = [[NSMutableArray alloc] init];
+       [params addObject:self.targetFileName];
+       [params addObject:thumbnailFileName];
+       [params addObject:@(self.startedTime)];
+       [params addObject:@(dataCaptured)];
+       [params addObject:@(imagesWrittenToDisk)];
+        CDVPluginResult *pluginResult = [CDVPluginResult resultWithStatus:CDVCommandStatus_OK messageAsArray:params];
+        [self.commandDelegate sendPluginResult:pluginResult callbackId: self.commandId];
+        // TODO consider whether this needs to be cleaned up and when
+        // [self.sessionManager.session removeOutput:output];
+    }
 }
 
 void CGImageWriteToFile(CGImageRef image, NSString *path, CGFloat quality) {

@@ -148,10 +148,73 @@
   });
 }
 
+- (void) setupSessionOnIOS17:(NSString *)defaultCamera completion:(void(^)(BOOL started))completion{
+  [self checkDeviceAuthorizationStatus];
+
+  dispatch_async(self.sessionQueue, ^{
+      NSError *error = nil;
+      BOOL success = TRUE;
+
+      NSLog(@"defaultCamera: %@", defaultCamera);
+      if ([defaultCamera isEqual: @"front"]) {
+        self.defaultCamera = AVCaptureDevicePositionFront;
+      } else {
+        self.defaultCamera = AVCaptureDevicePositionBack;
+      }
+
+      AVCaptureDevice * videoDevice = [self cameraWithPosition: self.defaultCamera];
+
+      if ([videoDevice hasFlash] && [videoDevice isFlashModeSupported:AVCaptureFlashModeAuto]) {
+        if ([videoDevice lockForConfiguration:&error]) {
+          [videoDevice setFlashMode:AVCaptureFlashModeAuto];
+          [videoDevice unlockForConfiguration];
+        } else {
+          NSLog(@"%@", error);
+          success = FALSE;
+        }
+      }
+
+      AVCaptureDeviceInput *videoDeviceInput = [AVCaptureDeviceInput deviceInputWithDevice:videoDevice error:&error];
+
+      if (error) {
+        NSLog(@"%@", error);
+        success = FALSE;
+      }
+
+      if ([self.session canAddInput:videoDeviceInput]) {
+        [self.session addInput:videoDeviceInput];
+        self.videoDeviceInput = videoDeviceInput;
+      }
+
+      AVCapturePhotoOutput *photoOutput = [[AVCapturePhotoOutput alloc] init];
+      if ([self.session canAddOutput:photoOutput]) {
+        [self.session addOutput:photoOutput];
+        self.photoOutput = photoOutput;
+      }
+
+      dispatch_async(dispatch_get_main_queue(),
+                     ^{ [self updateOrientationOnIOS17:[self getCurrentOrientation]]; });
+
+      self.device = videoDevice;
+
+      completion(success);
+  });
+}
+
 - (void) updateOrientation:(AVCaptureVideoOrientation)orientation {
   AVCaptureConnection *captureConnection;
   if (self.stillImageOutput != nil) {
     captureConnection = [self.stillImageOutput connectionWithMediaType:AVMediaTypeVideo];
+    if ([captureConnection isVideoOrientationSupported]) {
+      [captureConnection setVideoOrientation:orientation];
+    }
+  }
+}
+
+- (void) updateOrientationOnIOS17:(AVCaptureVideoOrientation)orientation {
+  AVCaptureConnection *captureConnection;
+  if (self.photoOutput != nil) {
+    captureConnection = [self.photoOutput connectionWithMediaType:AVMediaTypeVideo];
     if ([captureConnection isVideoOrientationSupported]) {
       [captureConnection setVideoOrientation:orientation];
     }

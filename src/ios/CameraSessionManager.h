@@ -16,6 +16,7 @@
 - (NSArray *) getFlashModes;
 - (NSInteger) getFlashMode;
 - (void) setupSession:(NSString *)defaultCamera completion:(void(^)(BOOL started))completion;
+- (void) setupSessionOnIOS17:(NSString *)defaultCamera completion:(void(^)(BOOL started))completion;
 - (void) switchCamera:(void(^)(BOOL switched))completion;
 - (void) setFlashMode:(NSInteger)flashMode;
 - (void) setZoom:(CGFloat)desiredZoomFactor;
@@ -45,6 +46,7 @@
 @property (nonatomic) CGFloat videoZoomFactor;
 @property (nonatomic) AVCaptureDevice *device;
 @property (nonatomic) AVCaptureDeviceInput *videoDeviceInput;
+@property (nonatomic) AVCapturePhotoOutput *photoOutput;
 @property (nonatomic) AVCaptureStillImageOutput *stillImageOutput;
 @property (nonatomic, assign) id delegate;
 @property (nonatomic) NSString *currentWhiteBalanceMode;
