@@ -920,6 +920,7 @@
     AVCaptureConnection *captureConnection;
     captureConnection = [self.sessionManager.photoOutput connectionWithMediaType:AVMediaTypeVideo];
     AVCapturePhotoSettings *photoSettings = [AVCapturePhotoSettings photoSettings];
+    photoSettings.flashMode = self.sessionManager.defaultFlashMode;
     [self.sessionManager.photoOutput capturePhotoWithSettings:photoSettings delegate:self];
         
 }
