@@ -920,7 +920,13 @@
     AVCaptureConnection *captureConnection;
     captureConnection = [self.sessionManager.photoOutput connectionWithMediaType:AVMediaTypeVideo];
     AVCapturePhotoSettings *photoSettings = [AVCapturePhotoSettings photoSettings];
-    photoSettings.flashMode = self.sessionManager.defaultFlashMode;
+
+    NSArray *supportedFlashModes = self.sessionManager.photoOutput.supportedFlashModes;
+    bool isFlashModeSupported = [supportedFlashModes containsObject:@(self.sessionManager.defaultFlashMode)];
+    if(isFlashModeSupported) {
+        photoSettings.flashMode = self.sessionManager.defaultFlashMode;
+    }
+
     [self.sessionManager.photoOutput capturePhotoWithSettings:photoSettings delegate:self];
         
 }
