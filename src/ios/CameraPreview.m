@@ -685,7 +685,9 @@
     CFDictionaryRef properties = CGImageSourceCopyPropertiesAtIndex(imageSource, 0, NULL);
     CGImageRef image = CGImageSourceCreateImageAtIndex(imageSource, 0, NULL);
     CFRelease(imageSource);
-    
+    if (properties) CFRelease(properties);
+    if (!image) return NULL;
+
     switch (rotationAngle) {
         case kCGImagePropertyOrientationUp:
         case kCGImagePropertyOrientationUpMirrored:
@@ -980,6 +982,10 @@ void CGImageWriteToFile(CGImageRef image, NSString *path, CGFloat quality) {
     CFURLRef url = (__bridge CFURLRef) [NSURL fileURLWithPath:path];
 
     CGImageDestinationRef destination = CGImageDestinationCreateWithURL(url, kUTTypeJPEG, 1, nil);
+    if (!destination) {                                                                                
+        NSLog(@"Failed to create image destination for %@", path);                                     
+        return;                                                                                        
+    } 
 
     CFDictionaryRef options = (__bridge CFDictionaryRef) @{
            (id) kCGImageDestinationLossyCompressionQuality: @(quality)
