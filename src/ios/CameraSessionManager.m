@@ -522,6 +522,21 @@
     };
   } else if ([exposureMode isEqual:@"continuous"]) {
     if ([videoDevice isExposureModeSupported:2]) {
+      // Re-centre the metering point before handing exposure back to the camera.
+      //
+      // exposurePointOfInterest tells the camera *where* in the frame to meter.
+      // tapToFocus moves it to whatever the user tapped, and nothing ever moved
+      // it back — the focus branch above re-centres focusPointOfInterest, but the
+      // exposure equivalent was missing. Since the app re-applies 'continuous'
+      // after every capture (takePhoto -> finally in CameraPanelController), the
+      // stale point survived into all later shots: one tap on a dark area left
+      // the camera metering for that spot and over-exposing the whole frame.
+      //
+      // Guarded because AVFoundation raises an exception if you set this point
+      // on a device that does not support it.
+      if ([videoDevice isExposurePointOfInterestSupported]) {
+        videoDevice.exposurePointOfInterest = CGPointMake(0.5, 0.5);
+      }
       videoDevice.exposureMode = 2;
     } else {
       errMsg = @"Exposure mode not supported";
