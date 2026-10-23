@@ -55,6 +55,7 @@
 @property (nonatomic) NSString * _Nonnull commandId;
 @property (nonatomic) NSString * _Nonnull targetFileName;
 @property (nonatomic) int targetRotation;
+@property (nonatomic) CGFloat targetQuality;
 @property (nonatomic) NSInteger iosVersion;
 @property (nonatomic) CFAbsoluteTime startedTime;
 

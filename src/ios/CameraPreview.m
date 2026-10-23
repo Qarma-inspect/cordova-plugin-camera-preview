@@ -918,6 +918,7 @@
     self.targetFileName = fileName;
     self.commandId = callbackId;
     self.targetRotation = [self getRotationIndex:rotation];
+    self.targetQuality = quality;
     self.startedTime = CFAbsoluteTimeGetCurrent();
     AVCaptureConnection *captureConnection;
     captureConnection = [self.sessionManager.photoOutput connectionWithMediaType:AVMediaTypeVideo];
@@ -954,11 +955,11 @@
 
         
         CGImageRef finalImage = [self resizeAndRotateImage:imgDataRef biggerEdge:1600 smallerEdge:1200 rotationAngle:(self.targetRotation)];
-        CGImageWriteToFile(finalImage, fullPath, 1.0);
+        CGImageWriteToFile(finalImage, fullPath, self.targetQuality);
         CFRelease(finalImage);
         
         CGImageRef thumbnailImage = [self resizeAndRotateImage:imgDataRef biggerEdge:400 smallerEdge:300 rotationAngle:(self.targetRotation)];
-        CGImageWriteToFile(thumbnailImage, thumbPath, 1.0);
+        CGImageWriteToFile(thumbnailImage, thumbPath, self.targetQuality);
         CFRelease(thumbnailImage);
         
        CFRelease(imgDataRef);
